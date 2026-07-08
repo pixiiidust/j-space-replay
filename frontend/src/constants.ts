@@ -1,0 +1,27 @@
+/**
+ * The honesty banner text, VERBATIM from SPEC.md §"Honesty banner (must appear
+ * in UI)". Must render unchanged on the replay screen. Do not paraphrase.
+ */
+export const HONESTY_BANNER =
+  "Demo-quality interpretability. Lens readouts are noisy, single-token, and " +
+  "unvalidated on vision-language models. The J-lens method was validated on " +
+  "Claude text models only (Anthropic workspace paper); this tool extrapolates " +
+  "it to a VLM. Not suitable for mechanistic claims.";
+
+export const DEFAULT_QUESTION = "Describe what happens in this video.";
+
+/** Pipeline stages, in order, as reported by GET /jobs/{id}. */
+export const PIPELINE_STAGES = [
+  "sampling",
+  "prefill_capture",
+  "generating",
+  "lens_decode",
+  "labels",
+  "grounding",
+  "done",
+] as const;
+
+export const PLAYBACK_SPEEDS = [0.25, 0.5, 0.75, 1] as const;
+
+/** Axis label for strength — SPEC locks this; never "confidence"/"probability". */
+export const STRENGTH_AXIS_LABEL = "readout strength";
