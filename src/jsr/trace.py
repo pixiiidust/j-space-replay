@@ -173,6 +173,11 @@ def run_trace(
             )
     _done("lens_decode")
 
+    # id -> string map for every token id that appears in patch_top1, so the
+    # frontend can decode patch heatmaps without a tokenizer
+    distinct_ids = sorted(set(patch_ids.reshape(-1).tolist()))
+    token_strings = {str(i): tokenizer.decode([i]) for i in distinct_ids}
+
     trace = {
         "schema": SCHEMA_VERSION,
         "video_id": clip.stem,
@@ -191,6 +196,7 @@ def run_trace(
             "input_tokens": len(input_ids),
             "visual_tokens": len(pm.visual_indices),
             "timings_s": timings,
+            "token_strings": token_strings,
         },
         "frame_groups": frame_groups,
         "answer_tokens": answer_tokens,
