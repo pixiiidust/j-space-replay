@@ -8,7 +8,7 @@
  * a question word in the answer; readout string match) — never a claim about
  * model beliefs.
  */
-import type { AnswerToken, FrameGroup } from "./types";
+import type { AnswerToken } from "./types";
 
 const STOP = new Set([
   "the", "a", "an", "of", "in", "on", "at", "to", "and", "or", "is", "are",
@@ -86,22 +86,3 @@ export function answerGridPulse(
   );
 }
 
-/** Pulse matrix for the transposed frame-group grid: rows = layers (deep on top). */
-export function groupGridPulse(
-  groups: FrameGroup[],
-  nLayers: number,
-  terms: Set<string>,
-): boolean[][] {
-  const byGroupLayer = groups.map((g) => {
-    const m = new Map<number, string[]>();
-    for (const r of g.raw_readouts) m.set(r.layer, r.top_tokens);
-    return m;
-  });
-  return Array.from({ length: nLayers }, (_, r) => {
-    const layer = nLayers - 1 - r;
-    return groups.map((_, gi) => {
-      const tokens = byGroupLayer[gi].get(layer);
-      return tokens ? tokensHitTerms(tokens, terms) : false;
-    });
-  });
-}

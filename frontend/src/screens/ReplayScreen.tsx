@@ -9,8 +9,7 @@ import { HonestyBanner } from "../components/HonestyBanner";
 import { VideoPanel, type OverlayMode } from "../components/VideoPanel";
 import { Controls } from "../components/Controls";
 import { QueryConsole } from "../components/QueryConsole";
-import { TimelineHeatmap } from "../components/TimelineHeatmap";
-import { AnswerWorkspace, GroupLayerPanel } from "../components/JSpaceSlice";
+import { AnswerWorkspace } from "../components/JSpaceSlice";
 import { ConceptBoard } from "../components/ConceptBoard";
 import { EventLog } from "../components/EventLog";
 
@@ -191,25 +190,11 @@ function ReplayBody(props: {
 
         {/* CENTER — hero: the answer forming across layers on the playback clock */}
         <div className="col">
-          <AnswerWorkspace trace={trace} answerRow={answerRow} />
+          <AnswerWorkspace trace={trace} answerRow={answerRow} playing={clock.playing} />
         </div>
 
-        {/* RIGHT — sidebar: what exists at each frame group, then the derived views */}
+        {/* RIGHT — sidebar: derived views */}
         <div className="col">
-          <GroupLayerPanel
-            trace={trace}
-            currentGroup={clock.groupIndex}
-            onSeekGroup={(idx) => clock.seekGroup(idx)}
-          />
-          <TimelineHeatmap
-            model={model}
-            currentGroup={clock.groupIndex}
-            selectedRow={selectedRow}
-            onPick={(rowIdx, groupIdx) => {
-              setSelectedRow(rowIdx);
-              clock.seekGroup(groupIdx);
-            }}
-          />
           <ConceptBoard
             model={model}
             selectedRow={selectedRow}
