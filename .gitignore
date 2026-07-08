@@ -22,3 +22,6 @@ frontend/dist/
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Claude Code agent worktrees
+.claude/worktrees/
