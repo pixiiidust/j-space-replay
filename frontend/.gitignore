@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.local
+.vite/
+*.tsbuildinfo
+
+# playwright (optional e2e)
+test-results/
+playwright-report/
+e2e/__screens__/
+blob-report/
+.playwright/
