@@ -1,0 +1,37 @@
+{
+  "video_id": "ball_drop",
+  "question": "Describe what happens in this video.",
+  "n_layers": 28,
+  "sampled_frames": 8,
+  "video_grid_thw": [
+    4,
+    20,
+    40
+  ],
+  "visual_tokens": 800,
+  "input_tokens": 828,
+  "n_groups": 4,
+  "patch_grid": [
+    10,
+    20
+  ],
+  "tokens_per_group": 200,
+  "group_times": [
+    [
+      0.0,
+      2.0
+    ],
+    [
+      2.0,
+      4.0
+    ],
+    [
+      4.0,
+      6.0
+    ],
+    [
+      6.0,
+      8.0
+    ]
+  ]
+}

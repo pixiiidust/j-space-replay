@@ -47,3 +47,4 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["gpu: needs CUDA + downloaded model weights"]

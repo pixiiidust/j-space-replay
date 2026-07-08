@@ -62,3 +62,38 @@ def sample_frames(path: str | Path, fps: float = 1.0) -> SampledVideo:
     if not frames:
         raise ValueError(f"no frames decoded from {path}")
     return SampledVideo(frames, timestamps, duration or timestamps[-1], native_fps)
+
+
+@dataclass
+class FrameGroup:
+    """One 2-frame temporal-merge group — the finest time resolution of the lens."""
+
+    group: int
+    frame_indices: list[int]  # indices into SampledVideo.frames (last may repeat = pad)
+    time_start: float
+    time_end: float
+
+
+def group_frames(sampled: SampledVideo, group_size: int = 2) -> list[FrameGroup]:
+    """Pair sampled frames into temporal-merge groups, mirroring Qwen's packing.
+
+    Qwen2.5-VL pads an odd frame count by repeating the last frame
+    (qwen-vl-utils FRAME_FACTOR); the group bookkeeping must match or the
+    position map drifts off the video timeline.
+    """
+    ts = sampled.timestamps
+    n = len(ts)
+    groups: list[FrameGroup] = []
+    for g, start in enumerate(range(0, n, group_size)):
+        idxs = list(range(start, min(start + group_size, n)))
+        while len(idxs) < group_size:  # pad like Qwen: repeat last frame
+            idxs.append(idxs[-1])
+        t0 = ts[idxs[0]]
+        nxt = start + group_size
+        if nxt < n:
+            t1 = ts[nxt]
+        else:  # last group: extend by the median sampling step
+            step = (ts[-1] - ts[0]) / (n - 1) if n > 1 else 1.0
+            t1 = ts[idxs[-1]] + step
+        groups.append(FrameGroup(g, idxs, t0, t1))
+    return groups
