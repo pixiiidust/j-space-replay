@@ -1,0 +1,66 @@
+name: CI
+
+# Portability canary: the reference target is Windows + RTX 5070 Ti, but the
+# whole GPU-free layer (pipeline logic, FastAPI backend, frontend) must keep
+# working on Linux so platform drift is caught early. GPU-marked tests are
+# skipped here — the maintainer runs those on real hardware.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (ubuntu, python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        # Pulls the pinned torch cu128 wheel (Linux, CPU-usable) + the dev group.
+        # GPU tests are skipped, so CUDA is never exercised — this only proves
+        # the exact pinned deps import and the pure-logic + HTTP layers pass.
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check src tests
+
+      - name: Test (non-GPU)
+        run: uv run pytest -m "not gpu" -q
+
+  frontend:
+    name: frontend (node build + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test

@@ -61,6 +61,7 @@ class Pipeline:
         oom_errors: tuple[type[BaseException], ...] | None = None,
         video_errors: tuple[type[BaseException], ...] | None = None,
         add_concepts: Callable | None = None,
+        preflight_fn: Callable[[], None] | None = None,
         default_fps: float = 1.0,
         default_max_pixels: int = DEFAULT_MAX_PIXELS,
     ):
@@ -72,13 +73,24 @@ class Pipeline:
         self._oom_errors = _default_oom_errors() if oom_errors is None else oom_errors
         self._video_errors = _default_video_errors() if video_errors is None else video_errors
         self._add_concepts = add_concepts  # None -> import jsr.labels lazily per run
+        self._preflight_fn = preflight_fn  # None -> soft VRAM guard (preflight.preflight_job)
         self.default_fps = default_fps
         self.default_max_pixels = default_max_pixels
         self._model = None  # lazily loaded (model, processor) tuple, cached
 
+    # -- VRAM pre-flight (soft: refuses only when measurably below budget) --
+    def _preflight(self) -> None:
+        if self._preflight_fn is not None:
+            self._preflight_fn()
+            return
+        from jsr.server.preflight import preflight_job
+
+        preflight_job()
+
     # -- lazy model load ---------------------------------------------------
     def _get_model(self):
         if self._model is None:
+            self._preflight()
             loader = self._load_model
             if loader is None:
                 from jsr.model import load_model_and_processor

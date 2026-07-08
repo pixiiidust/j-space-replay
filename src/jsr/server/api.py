@@ -11,6 +11,11 @@ Routes:
   GET  /library              -> {items: [...]}
   GET  /videos/{video_id}/file -> raw video bytes
 
+POST /videos enforces the M5 input limits with friendly JSON errors:
+  * over MAX_UPLOAD_BYTES (100 MB)          -> 413
+  * probeable duration over MAX_DURATION_S  -> 422
+  * undecodable / duration unprobeable      -> 415 (likely unsupported codec)
+
 Importing this module builds the app and its job-queue worker thread but does
 NOT load the model or touch CUDA — that happens lazily inside the first job.
 """
@@ -29,6 +34,13 @@ from jsr.server.ids import DEFAULT_QUESTION, trace_id_for, video_id_for
 from jsr.server.jobs import JobQueue
 from jsr.server.pipeline import Pipeline
 from jsr.server.store import TraceStore, VideoStore
+
+
+# Input limits (M5). MVP targets short clips (SPEC: 5-20 s, 480p); these caps
+# keep a single trace pass inside the VRAM/token budget and give the user a
+# friendly error instead of an OOM deep inside a job.
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+MAX_DURATION_S = 25.0  # hard clip-length cap
 
 
 class TraceRequest(BaseModel):
@@ -61,6 +73,8 @@ def create_app(
     pipeline: Pipeline | None = None,
     job_queue: JobQueue | None = None,
     probe_fn: Callable[[bytes, str], float] | None = None,
+    max_upload_bytes: int = MAX_UPLOAD_BYTES,
+    max_duration_s: float = MAX_DURATION_S,
 ) -> FastAPI:
     video_store = video_store or VideoStore(uploads_dir)
     trace_store = trace_store or TraceStore(traces_dir)
@@ -79,10 +93,41 @@ def create_app(
     async def upload_video(file: UploadFile = File(...)):  # noqa: B008 - FastAPI DI idiom
         data = await file.read()
         if not data:
-            raise HTTPException(status_code=400, detail="empty upload")
+            raise HTTPException(status_code=400, detail="Empty upload — no file bytes received.")
         filename = file.filename or "upload.mp4"
-        video_id = video_id_for(data)
+
+        # -- input limits (M5), friendly errors before anything hits disk ----
+        if len(data) > max_upload_bytes:
+            mb = len(data) / (1024 * 1024)
+            limit_mb = max_upload_bytes / (1024 * 1024)
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"Video is {mb:.0f} MB, over the {limit_mb:.0f} MB limit. Trim the "
+                    "clip (this tool targets 5-25 s at 480p) or re-encode it smaller."
+                ),
+            )
         duration_s = probe_fn(data, filename)
+        if duration_s <= 0:
+            raise HTTPException(
+                status_code=415,
+                detail=(
+                    "Could not decode this video — its duration was unreadable, which "
+                    "usually means an unsupported or corrupt codec. Please upload a "
+                    "standard H.264/H.265 MP4 or VP9/AV1 WebM clip."
+                ),
+            )
+        if duration_s > max_duration_s:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Clip is {duration_s:.1f} s, over the {max_duration_s:.0f} s limit. "
+                    "Please upload a shorter clip — this tool is built for short "
+                    "(5-25 s) videos so a trace fits the GPU/token budget."
+                ),
+            )
+
+        video_id = video_id_for(data)
         record = video_store.save(video_id, filename, data, duration_s)
         return {"video_id": record.video_id, "filename": record.filename, "duration_s": record.duration_s}
 
