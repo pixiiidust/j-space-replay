@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Trace } from "../trace/types";
 import { DEFAULT_QUESTION } from "../constants";
+import { contradictedTerms } from "../trace/terms";
 
 interface Props {
   trace: Trace;
@@ -21,6 +22,10 @@ const isSpecial = (tok: string) => /^\s*<\|[^>]*\|>\s*$/.test(tok);
 export function QueryConsole({ trace, answerRow, onSeekToken, onReAsk }: Props) {
   const [q, setQ] = useState(trace.question);
   useEffect(() => setQ(trace.question), [trace.question]);
+  const contradicted = useMemo(
+    () => contradictedTerms(trace.question, trace.answer),
+    [trace.question, trace.answer],
+  );
 
   return (
     <div className="qa">
@@ -60,6 +65,12 @@ export function QueryConsole({ trace, answerRow, onSeekToken, onReAsk }: Props) 
             )
           : trace.answer}
       </div>
+      {contradicted.size > 0 && (
+        <div className="premise-check">
+          premise check: the answer negates “{[...contradicted].join("”, “")}” — cells
+          reading it pulse red in the grids below
+        </div>
+      )}
     </div>
   );
 }

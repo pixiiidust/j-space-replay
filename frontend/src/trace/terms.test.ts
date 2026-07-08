@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { answerGridMarks, canonWord, contentWords, markFor } from "./terms";
+import { answerGridPulse, canonWord, contentWords, contradictedTerms, tokensHitTerms } from "./terms";
 import type { AnswerToken } from "./types";
 
-describe("term tracking (adversarial signal)", () => {
+describe("contradiction tracking (adversarial signal)", () => {
   it("extracts canonical content words, dropping stopwords", () => {
     const w = contentWords("Why is the dog wet in this video?");
     expect(w.has("dog")).toBe(true);
@@ -16,24 +16,36 @@ describe("term tracking (adversarial signal)", () => {
     expect(canonWord("falling")).toBe("fall");
   });
 
-  it("marks cells by which side's terms their readouts contain", () => {
-    const q = contentWords("Why is the dog wet?");
-    const a = contentWords("This is a cat, not a dog. It is dry.");
-    expect(markFor([" cat"], q, a)).toBe("a");
-    expect(markFor([" wet"], q, a)).toBe("q");
-    expect(markFor([" dog"], q, a)).toBe("qa"); // in both question and answer
-    expect(markFor([" zebra"], q, a)).toBe(null);
+  it("detects a negated question term in the answer", () => {
+    const t = contradictedTerms(
+      "Why is the dog wet?",
+      "The image does not show a dog or any indication of why a dog might be wet.",
+    );
+    expect(t.has("dog")).toBe(true);
   });
 
-  it("false-presupposition case: question terms scarce, answer correction everywhere", () => {
-    const q = contentWords("Why is the dog wet?");
-    const a = contentWords("The video shows a cat.");
+  it("no negation, no contradiction", () => {
+    const t = contradictedTerms(
+      "Why does the car start moving?",
+      "The car starts moving because the traffic light changes from red to green.",
+    );
+    expect(t.size).toBe(0);
+  });
+
+  it("negation of a non-question word does not fire", () => {
+    const t = contradictedTerms("Why is the dog wet?", "There is no umbrella in the scene.");
+    expect(t.size).toBe(0);
+  });
+
+  it("pulse matrix lights cells whose readouts contain a contradicted term", () => {
+    const terms = new Set(["dog"]);
     const tokens: AnswerToken[] = [
-      { token: " cat", readouts_by_layer: { "27": { top_tokens: [" cat"], strengths: [1] } } },
-      { token: " sits", readouts_by_layer: { "27": { top_tokens: [" chair"], strengths: [1] } } },
+      { token: " no", readouts_by_layer: { "27": { top_tokens: [" dog"], strengths: [1] } } },
+      { token: " ball", readouts_by_layer: { "27": { top_tokens: [" ball"], strengths: [1] } } },
     ];
-    const marks = answerGridMarks(tokens, [27], q, a);
-    expect(marks[0][0]).toBe("a"); // the correction lights as an answer term
-    expect(marks[1][0]).toBe(null); // no dog/wet marks anywhere
+    const pulse = answerGridPulse(tokens, [27], terms);
+    expect(pulse[0][0]).toBe(true);
+    expect(pulse[1][0]).toBe(false);
+    expect(tokensHitTerms([" dogs"], terms)).toBe(true); // canonical match
   });
 });

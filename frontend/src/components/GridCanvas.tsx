@@ -16,8 +16,8 @@ interface Props {
   revealUpToRow?: number | null;
   /** Column-wise variant, for grids whose time axis runs left-to-right. */
   revealUpToCol?: number | null;
-  /** Per-cell term marks: "q" (question term), "a" (answer term), "qa", or null. */
-  marks?: (string | null)[][];
+  /** Cells that pulse red: readouts here contain a premise the answer contradicts. */
+  pulse?: boolean[][];
 }
 
 /**
@@ -38,7 +38,7 @@ export function GridCanvas({
   highlightCol,
   revealUpToRow,
   revealUpToCol,
-  marks,
+  pulse,
 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const headerH = 16;
@@ -51,11 +51,33 @@ export function GridCanvas({
   for (const row of values) for (const v of row) if (v != null) maxAbs = Math.max(maxAbs, Math.abs(v));
   if (maxAbs === 0) maxAbs = 1;
 
+  const anyPulse = !!pulse?.some((row) => row.some(Boolean));
+
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
     const ctx = setupCanvas(canvas, width, height);
     if (!ctx) return;
+    draw(ctx, 0.75);
+
+    // Pulse loop only when there is something to pulse; a static overlay when
+    // the user prefers reduced motion.
+    if (!anyPulse) return;
+    const reduced =
+      typeof matchMedia === "function" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) return;
+    let raf = 0;
+    const tick = (ts: number) => {
+      draw(ctx, 0.45 + 0.4 * Math.abs(Math.sin(ts / 400)));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowLabels, colLabels, values, selected, highlightRow, highlightCol, revealUpToRow, revealUpToCol, pulse, anyPulse, width, height, cellW, cellH, labelW, maxAbs, nRows, nCols]);
+
+  function draw(ctx: CanvasRenderingContext2D, pulseAlpha: number) {
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
@@ -82,25 +104,16 @@ export function GridCanvas({
         ctx.globalAlpha = cellUnrevealed ? 0.12 : 1;
         ctx.fillStyle = v == null ? "#f7f7f5" : heatColor(Math.abs(v) / maxAbs);
         ctx.fillRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
-        const mark = marks?.[r]?.[c];
-        if (mark) {
-          // corner triangles: top-right = question term, bottom-right = answer term
-          if (mark === "q" || mark === "qa") {
-            ctx.fillStyle = "#9b2f5f";
-            ctx.beginPath();
-            ctx.moveTo(x + cellW - 6, y + 1);
-            ctx.lineTo(x + cellW - 1, y + 1);
-            ctx.lineTo(x + cellW - 1, y + 6);
-            ctx.fill();
-          }
-          if (mark === "a" || mark === "qa") {
-            ctx.fillStyle = "#caa24a";
-            ctx.beginPath();
-            ctx.moveTo(x + cellW - 1, y + cellH - 6);
-            ctx.lineTo(x + cellW - 1, y + cellH - 1);
-            ctx.lineTo(x + cellW - 6, y + cellH - 1);
-            ctx.fill();
-          }
+        if (pulse?.[r]?.[c]) {
+          // contradiction pulse: the readouts here contain a premise the
+          // answer negates
+          ctx.globalAlpha = pulseAlpha;
+          ctx.fillStyle = "#c0392b";
+          ctx.fillRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = "#c0392b";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
         }
       }
       ctx.globalAlpha = 1;
@@ -126,7 +139,7 @@ export function GridCanvas({
         cellH - 2,
       );
     }
-  }, [rowLabels, colLabels, values, selected, highlightRow, highlightCol, revealUpToRow, revealUpToCol, marks, width, height, cellW, cellH, labelW, maxAbs, nRows, nCols]);
+  }
 
   return (
     <div className="canvas-scroll">

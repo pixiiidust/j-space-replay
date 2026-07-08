@@ -227,6 +227,12 @@ select:focus {
   background: var(--primary);
   color: #fff;
 }
+.premise-check {
+  border-top: 1px solid var(--grid);
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #c0392b;
+}
 
 /* hero panel: grid on the left, drill-down pinned to its right */
 .hero-split {

@@ -8,15 +8,14 @@ import {
   type TokenStrength,
 } from "../trace/jspace";
 import { STRENGTH_AXIS_LABEL } from "../constants";
-import { answerGridMarks, groupGridMarks, questionAnswerWords } from "../trace/terms";
+import { answerGridPulse, contradictedTerms, groupGridPulse } from "../trace/terms";
 import { GridCanvas } from "./GridCanvas";
 
-function MarkLegend() {
+function PulseLegend({ terms }: { terms: Set<string> }) {
+  if (terms.size === 0) return null;
   return (
-    <span>
-      {" "}· <span style={{ color: "#9b2f5f" }}>◥ question term</span>{" "}
-      <span style={{ color: "#caa24a" }}>◢ answer term</span> in the cell's raw readouts —
-      a question whose premise the clip contradicts shows few ◥ and many ◢
+    <span style={{ color: "#c0392b" }}>
+      {" "}· pulsing cells read “{[...terms].join('”, “')}” — a premise the answer contradicts
     </span>
   );
 }
@@ -70,10 +69,11 @@ export function AnswerWorkspace({
     trace.answer_tokens.length ? { r: 0, c: al.layers.length - 1 } : null,
   );
   const rowLabels = trace.answer_tokens.map((t, i) => `${i}:${t.token.replace(/▁/g, "·")}`);
-  const marks = useMemo(() => {
-    const { qWords, aWords } = questionAnswerWords(trace);
-    return answerGridMarks(trace.answer_tokens, al.layers, qWords, aWords);
-  }, [trace, al.layers]);
+  const terms = useMemo(() => contradictedTerms(trace.question, trace.answer), [trace]);
+  const pulse = useMemo(
+    () => answerGridPulse(trace.answer_tokens, al.layers, terms),
+    [trace, al.layers, terms],
+  );
 
   const drill = useMemo(() => {
     if (!sel) return { title: "—", tokens: [] as TokenStrength[] };
@@ -96,7 +96,7 @@ export function AnswerWorkspace({
           <div className="axis-note" style={{ marginBottom: 3 }}>
             {STRENGTH_AXIS_LABEL}, raw logit — generation replayed on the clip clock;
             tokens were generated after the model saw the whole clip
-            <MarkLegend />
+            <PulseLegend terms={terms} />
           </div>
           <GridCanvas
             rowLabels={rowLabels}
@@ -106,7 +106,7 @@ export function AnswerWorkspace({
             selected={sel}
             highlightRow={answerRow}
             revealUpToRow={answerRow}
-            marks={marks}
+            pulse={pulse}
             onPick={(r, c) => setSel({ r, c })}
           />
         </div>
@@ -144,10 +144,11 @@ export function GroupLayerPanel({
     [gl, nLayers, trace.frame_groups],
   );
   const [sel, setSel] = useState<{ r: number; c: number } | null>({ r: 0, c: 0 });
-  const marks = useMemo(() => {
-    const { qWords, aWords } = questionAnswerWords(trace);
-    return groupGridMarks(trace.frame_groups, nLayers, qWords, aWords);
-  }, [trace, nLayers]);
+  const terms = useMemo(() => contradictedTerms(trace.question, trace.answer), [trace]);
+  const pulse = useMemo(
+    () => groupGridPulse(trace.frame_groups, nLayers, terms),
+    [trace, nLayers, terms],
+  );
 
   const drill = useMemo(() => {
     if (!sel) return { title: "—", tokens: [] as TokenStrength[] };
@@ -170,7 +171,7 @@ export function GroupLayerPanel({
           <div className="axis-note" style={{ marginBottom: 3 }}>
             {STRENGTH_AXIS_LABEL}, patch-share — rows are layers (deep on top), columns
             are frame groups on the clip timeline
-            <MarkLegend />
+            <PulseLegend terms={terms} />
           </div>
           <GridCanvas
             rowLabels={gl.layers.map((l) => String(l)).reverse()}
@@ -182,7 +183,7 @@ export function GroupLayerPanel({
             selected={sel}
             highlightCol={currentGroup}
             revealUpToCol={currentGroup}
-            marks={marks}
+            pulse={pulse}
             onPick={(r, c) => {
               setSel({ r, c });
               onSeekGroup?.(c);

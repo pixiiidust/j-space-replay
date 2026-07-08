@@ -1,14 +1,14 @@
 /**
- * Question/answer term tracking — the "adversarial signal" surface.
+ * Contradiction tracking — the "adversarial signal" surface.
  *
- * Cells whose raw readouts contain the QUESTION's content words get one mark,
- * cells reading the ANSWER's content words another. When a question carries a
- * false presupposition ("why is the dog wet" on a cat video), the mismatch is
- * visible at a glance: question-term marks are scarce or absent while the
- * answer's correction ("cat") marks are everywhere. This only *marks* string
- * matches against lens readouts — it is not a claim about model beliefs.
+ * When the answer NEGATES one of the question's content words ("why is the
+ * dog wet?" → "the clip does not show a dog"), every cell whose raw readouts
+ * contain that word pulses red: the workspace visibly handling the rejected
+ * premise. Detection is purely mechanical string analysis (negation cue near
+ * a question word in the answer; readout string match) — never a claim about
+ * model beliefs.
  */
-import type { AnswerToken, FrameGroup, Trace } from "./types";
+import type { AnswerToken, FrameGroup } from "./types";
 
 const STOP = new Set([
   "the", "a", "an", "of", "in", "on", "at", "to", "and", "or", "is", "are",
@@ -40,47 +40,58 @@ export function contentWords(text: string): Set<string> {
   return out;
 }
 
-export type CellMark = "q" | "a" | "qa" | null;
+const NEGATIONS = new Set([
+  "no", "not", "never", "without", "isn't", "aren't", "wasn't", "doesn't",
+  "don't", "didn't", "cannot", "can't", "nor", "none",
+]);
 
-export function markFor(tokens: string[], qWords: Set<string>, aWords: Set<string>): CellMark {
-  let q = false;
-  let a = false;
-  for (const t of tokens) {
-    const c = canonWord(t.trim());
-    if (c.length < 3) continue;
-    if (qWords.has(c)) q = true;
-    if (aWords.has(c)) a = true;
-    if (q && a) break;
+/**
+ * Question content words that the answer NEGATES: the word appears in the
+ * answer within a few words after a negation cue ("does not show a dog",
+ * "there is no dog"). Purely mechanical string analysis of the answer text.
+ */
+export function contradictedTerms(question: string, answer: string, window = 6): Set<string> {
+  const qWords = contentWords(question);
+  const out = new Set<string>();
+  const words = answer.toLowerCase().match(/[a-z][a-z'-]*/g) ?? [];
+  for (let i = 0; i < words.length; i++) {
+    if (!NEGATIONS.has(words[i])) continue;
+    for (let j = i + 1; j <= Math.min(i + window, words.length - 1); j++) {
+      const c = canonWord(words[j]);
+      if (qWords.has(c)) out.add(c);
+    }
   }
-  return q && a ? "qa" : q ? "q" : a ? "a" : null;
+  return out;
 }
 
-export function questionAnswerWords(trace: Trace): { qWords: Set<string>; aWords: Set<string> } {
-  return { qWords: contentWords(trace.question), aWords: contentWords(trace.answer) };
+export function tokensHitTerms(tokens: string[], terms: Set<string>): boolean {
+  if (terms.size === 0) return false;
+  return tokens.some((t) => {
+    const c = canonWord(t.trim());
+    return c.length >= 3 && terms.has(c);
+  });
 }
 
-/** Marks for the answer-token × layer grid: rows = tokens, cols = layers. */
-export function answerGridMarks(
+/** Pulse matrix for the answer-token × layer grid: rows = tokens, cols = layers. */
+export function answerGridPulse(
   answerTokens: AnswerToken[],
   layers: number[],
-  qWords: Set<string>,
-  aWords: Set<string>,
-): CellMark[][] {
+  terms: Set<string>,
+): boolean[][] {
   return answerTokens.map((at) =>
     layers.map((layer) => {
       const r = at.readouts_by_layer[String(layer)];
-      return r ? markFor(r.top_tokens, qWords, aWords) : null;
+      return r ? tokensHitTerms(r.top_tokens, terms) : false;
     }),
   );
 }
 
-/** Marks for the transposed frame-group grid: rows = layers (deep on top), cols = groups. */
-export function groupGridMarks(
+/** Pulse matrix for the transposed frame-group grid: rows = layers (deep on top). */
+export function groupGridPulse(
   groups: FrameGroup[],
   nLayers: number,
-  qWords: Set<string>,
-  aWords: Set<string>,
-): CellMark[][] {
+  terms: Set<string>,
+): boolean[][] {
   const byGroupLayer = groups.map((g) => {
     const m = new Map<number, string[]>();
     for (const r of g.raw_readouts) m.set(r.layer, r.top_tokens);
@@ -90,7 +101,7 @@ export function groupGridMarks(
     const layer = nLayers - 1 - r;
     return groups.map((_, gi) => {
       const tokens = byGroupLayer[gi].get(layer);
-      return tokens ? markFor(tokens, qWords, aWords) : null;
+      return tokens ? tokensHitTerms(tokens, terms) : false;
     });
   });
 }
