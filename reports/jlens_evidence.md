@@ -84,15 +84,36 @@ patch content stays unavailable after a verified port -> the hero surface
 remains answer-token x layer (already the UI hero since PR #19), and this
 negative is recorded rather than papered over.
 
-## Concept recall (criterion 3)
+## Concept recall (criterion 3) — verified negative
 
 Baseline stats refit with the j-lens (`baseline_stats_jlens.json`), concept
-layer floor set from the evidence above (22 for j-lens vs 20 for logit).
-See the M2 gate re-run table in the issue #8 verdict comment /
-`reports/m2_quality_gate_jlens.json`.
+layer floor set from the evidence above (22 for j-lens vs 20 for logit),
+M2 gate re-run (`reports/m2_quality_gate_jlens.json`), same 10 clips:
 
-## Timing (criterion 4)
+|  | logit-lens-v1 | j-lens-v1 |
+|---|---|---|
+| concepts surfaced (all clips) | 26 | **19** |
+| known-content elements covered | 12/54 | **11/54** |
 
-J application is one extra 3584x3584 fp16 matvec per readout: lens_decode
-0.74 s vs 0.71 s on ball_drop; 15 s clip well within the 90 s budget
-(see verdict comment for the timing-clip number).
+Recall does NOT move up — it moves slightly down. The two causes are visible
+in the grids: (1) the newly wordlike mid layers contain function words, not
+content, so nothing new matches candidates; (2) the averaged transport
+slightly smears the late-layer band where the logit lens was already
+vocabulary-aligned, lowering content patch-shares (e.g. brown 0.11 -> 0.07
+peaks on ball_drop). The M2 "concepts experimental" fallback stands.
+
+## Timing (criterion 4) — pass
+
+J application is one extra 3584x3584 fp16 matvec per readout.
+`_timing_traffic_15s.mp4` with `--lens j-lens-v1`: **17.8 s total including
+model load** (lens_decode 1.23 s vs 1.22 s logit at M1) — well inside 90 s.
+
+## Overall verdict
+
+Verified port, honest negative on the product question: the J-lens fixes the
+mid-layer readout BASIS but does not surface mid-layer visual content or
+improve concept recall on Qwen2.5-VL video prompts. Per the PRD decision
+tree: the hero surface stays answer-token x layer (already the UI hero) with
+the late-layer patch band; `--lens j-lens-v1` remains an opt-in research
+lens whose genuine improvement is answer-token workspace readability at mid
+layers (junk 50-82% -> 6-24%). Logit lens stays the default.
