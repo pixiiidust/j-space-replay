@@ -20,7 +20,7 @@ test("full replay loop", async ({ page }) => {
 
   // 2. progress → auto-transition to replay
   await expect(page.getByText(/Demo-quality interpretability/)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/J-Space Timeline/)).toBeVisible();
+  await expect(page.getByText(/Workspace Slice/)).toBeVisible();
   await page.screenshot({ path: "e2e/__screens__/replay.png", fullPage: true });
 
   // 3. scrub: click the group rail and step

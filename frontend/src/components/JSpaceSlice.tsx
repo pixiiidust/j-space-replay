@@ -1,14 +1,8 @@
 import { useMemo, useState } from "react";
 import type { Trace } from "../trace/types";
-import {
-  answerLayerGrid,
-  answerTokensAt,
-  groupLayerGrid,
-  rawTokensAt,
-  type TokenStrength,
-} from "../trace/jspace";
+import { answerLayerGrid, answerTokensAt, type TokenStrength } from "../trace/jspace";
 import { STRENGTH_AXIS_LABEL } from "../constants";
-import { answerGridPulse, contradictedTerms, groupGridPulse } from "../trace/terms";
+import { answerGridPulse, contradictedTerms } from "../trace/terms";
 import { GridCanvas } from "./GridCanvas";
 
 function PulseLegend({ terms }: { terms: Set<string> }) {
@@ -20,10 +14,13 @@ function PulseLegend({ terms }: { terms: Set<string> }) {
   );
 }
 
-function DrillTable({ title, tokens }: { title: string; tokens: TokenStrength[] }) {
+function DrillTable({ title, tokens, live }: { title: string; tokens: TokenStrength[]; live: boolean }) {
   return (
     <div>
-      <div className="panel-h" style={{ border: "none", padding: "2px 0" }}>{title}</div>
+      <div className="panel-h" style={{ border: "none", padding: "2px 0" }}>
+        <span>{title}</span>
+        {live && <span style={{ color: "#113f8c" }}>● live</span>}
+      </div>
       <table className="drill">
         <thead>
           <tr>
@@ -54,19 +51,25 @@ function DrillTable({ title, tokens }: { title: string; tokens: TokenStrength[] 
 /**
  * The hero surface: answer-token × layer, replayed on the video clock. Token
  * rows reveal proportionally as the clip plays — the answer visibly forming.
- * Any cell drills down to its raw top-10 lens tokens (the honest "drop to raw
- * readouts" path SPEC requires behind every derived view).
+ *
+ * The drill table (pinned right) is live during playback: it streams the raw
+ * top-10 of the token currently being formed, at the selected layer (click a
+ * cell to choose the layer). Paused, clicking any cell inspects exactly that
+ * cell — the honest "drop to raw readouts" path behind every derived view.
  */
 export function AnswerWorkspace({
   trace,
   answerRow,
+  playing,
 }: {
   trace: Trace;
   answerRow: number;
+  playing: boolean;
 }) {
   const al = useMemo(() => answerLayerGrid(trace), [trace]);
+  const lastLayerCol = al.layers.length - 1;
   const [sel, setSel] = useState<{ r: number; c: number } | null>(
-    trace.answer_tokens.length ? { r: 0, c: al.layers.length - 1 } : null,
+    trace.answer_tokens.length ? { r: 0, c: lastLayerCol } : null,
   );
   const rowLabels = trace.answer_tokens.map((t, i) => `${i}:${t.token.replace(/▁/g, "·")}`);
   const terms = useMemo(() => contradictedTerms(trace.question, trace.answer), [trace]);
@@ -75,21 +78,29 @@ export function AnswerWorkspace({
     [trace, al.layers, terms],
   );
 
+  // during playback the drill follows the forming token at the chosen layer;
+  // paused, it shows whatever cell was clicked
+  const target = playing
+    ? { r: answerRow, c: sel?.c ?? lastLayerCol }
+    : sel ?? { r: answerRow, c: lastLayerCol };
+
   const drill = useMemo(() => {
-    if (!sel) return { title: "—", tokens: [] as TokenStrength[] };
-    const at = trace.answer_tokens[sel.r];
-    const layer = al.layers[sel.c];
+    const at = trace.answer_tokens[target.r];
+    const layer = al.layers[target.c];
+    if (!at) return { title: "—", tokens: [] as TokenStrength[] };
     return {
-      title: `answer token "${at?.token}" · layer ${layer}`,
+      title: `answer token "${at.token}" · layer ${layer}`,
       tokens: answerTokensAt(at, layer),
     };
-  }, [sel, trace, al.layers]);
+  }, [target.r, target.c, trace, al.layers]);
 
   return (
     <div className="panel">
       <div className="panel-h">
         <span>Workspace Slice · answer-token × layer</span>
-        <span className="muted">click a cell → raw top-10</span>
+        <span className="muted">
+          {playing ? "playing — click a column to pick the layer" : "click a cell → raw top-10"}
+        </span>
       </div>
       <div className="panel-b hero-split">
         <div className="hero-grid">
@@ -103,7 +114,7 @@ export function AnswerWorkspace({
             colLabels={al.layers.map(String)}
             values={al.values}
             cellH={13}
-            selected={sel}
+            selected={target}
             highlightRow={answerRow}
             revealUpToRow={answerRow}
             pulse={pulse}
@@ -111,86 +122,8 @@ export function AnswerWorkspace({
           />
         </div>
         <div className="hero-drill">
-          <DrillTable title={drill.title} tokens={drill.tokens} />
+          <DrillTable title={drill.title} tokens={drill.tokens} live={playing} />
         </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Frame-group × layer, transposed (layers as rows, deep layers on top; frame
- * groups as columns) so time runs left-to-right beside the video and the
- * panel fits a narrow column. Columns light up as the playhead passes them;
- * clicking a column seeks the clip to that group.
- */
-export function GroupLayerPanel({
-  trace,
-  currentGroup,
-  onSeekGroup,
-}: {
-  trace: Trace;
-  currentGroup: number;
-  onSeekGroup?(idx: number): void;
-}) {
-  const gl = useMemo(() => groupLayerGrid(trace), [trace]);
-  const nLayers = gl.layers.length;
-  // row r shows layer nLayers-1-r (deep layers, where the signal lives, on top)
-  const values = useMemo(
-    () =>
-      Array.from({ length: nLayers }, (_, r) =>
-        trace.frame_groups.map((_, g) => gl.values[g][nLayers - 1 - r]),
-      ),
-    [gl, nLayers, trace.frame_groups],
-  );
-  const [sel, setSel] = useState<{ r: number; c: number } | null>({ r: 0, c: 0 });
-  const terms = useMemo(() => contradictedTerms(trace.question, trace.answer), [trace]);
-  const pulse = useMemo(
-    () => groupGridPulse(trace.frame_groups, nLayers, terms),
-    [trace, nLayers, terms],
-  );
-
-  const drill = useMemo(() => {
-    if (!sel) return { title: "—", tokens: [] as TokenStrength[] };
-    const layer = nLayers - 1 - sel.r;
-    const g = trace.frame_groups[sel.c];
-    return {
-      title: `g${g?.group} (${g?.time_start}–${g?.time_end}s) · layer ${layer}`,
-      tokens: rawTokensAt(g, layer),
-    };
-  }, [sel, trace, nLayers]);
-
-  return (
-    <div className="panel">
-      <div className="panel-h">
-        <span>Frame Group × Layer</span>
-        <span className="muted">click → raw top-10</span>
-      </div>
-      <div className="panel-b" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div>
-          <div className="axis-note" style={{ marginBottom: 3 }}>
-            {STRENGTH_AXIS_LABEL}, patch-share — rows are layers (deep on top), columns
-            are frame groups on the clip timeline
-            <PulseLegend terms={terms} />
-          </div>
-          <GridCanvas
-            rowLabels={gl.layers.map((l) => String(l)).reverse()}
-            colLabels={trace.frame_groups.map((g) => `g${g.group}`)}
-            values={values}
-            labelW={34}
-            cellW={22}
-            cellH={13}
-            selected={sel}
-            highlightCol={currentGroup}
-            revealUpToCol={currentGroup}
-            pulse={pulse}
-            onPick={(r, c) => {
-              setSel({ r, c });
-              onSeekGroup?.(c);
-            }}
-          />
-        </div>
-        <DrillTable title={drill.title} tokens={drill.tokens} />
       </div>
     </div>
   );

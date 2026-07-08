@@ -40,7 +40,7 @@ describe("replay dashboard mounts and drives", () => {
 
     // banner (verbatim marker) and core panels appear once the trace loads
     await waitFor(() => expect(screen.getByText(/Demo-quality interpretability/)).toBeTruthy());
-    expect(screen.getByText(/J-Space Timeline/)).toBeTruthy();
+    expect(screen.getByText(/Workspace Slice/)).toBeTruthy();
     expect(screen.getByText(/Concepts/)).toBeTruthy();
     expect(screen.getByText(/Event Log/)).toBeTruthy();
     // fixtures carry M2 (experimental) concepts since #14 -> board shows labels
