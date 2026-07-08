@@ -7,7 +7,7 @@
   "model": "qwen2.5-vl-7b-instruct-bnb-nf4",
   "lens": "logit-lens-v1",
   "temporal_resolution_frames": 2,
-  "strength_normalization": "patch-share-top3 (visual) / raw-logit (answer)",
+  "strength_normalization": "concepts: per-layer z-score of patch-share vs baseline corpus; raw visual readouts: patch-share; answer readouts: raw logit",
   "n_layers": 28,
   "fps": 1.0,
   "max_pixels": 196000,
@@ -20,9 +20,9 @@
   "input_tokens": 1028,
   "visual_tokens": 1000,
   "timings_s": {
-   "sampling": 0.08,
-   "prefill_and_generate": 2.84,
-   "lens_decode": 0.72
+   "sampling": 0.06,
+   "prefill_and_generate": 2.61,
+   "lens_decode": 0.7
   },
   "token_strings": {
    "8": ")",
@@ -4738,7 +4738,10 @@
    "151645": "<|im_end|>",
    "151646": "<|object_ref_start|>",
    "151657": "<tool_call>"
-  }
+  },
+  "caption": "blue square, green square, transition",
+  "label_extraction": "labels-v1",
+  "concepts_quality": "experimental (high precision, low recall - see M2 gate)"
  },
  "frame_groups": [
   {
@@ -17757,7 +17760,24 @@
      ]
     }
    ],
-   "concepts": []
+   "concepts": [
+    {
+     "label": "smaller",
+     "strength": 2.07,
+     "layer": 24,
+     "source_tokens": [
+      "smaller"
+     ]
+    },
+    {
+     "label": "background",
+     "strength": 0.6,
+     "layer": 26,
+     "source_tokens": [
+      "background"
+     ]
+    }
+   ]
   },
   {
    "group": 2,
@@ -24466,7 +24486,24 @@
      ]
     }
    ],
-   "concepts": []
+   "concepts": [
+    {
+     "label": "blue",
+     "strength": 3.11,
+     "layer": 27,
+     "source_tokens": [
+      "blue"
+     ]
+    },
+    {
+     "label": "background",
+     "strength": 1.19,
+     "layer": 26,
+     "source_tokens": [
+      "background"
+     ]
+    }
+   ]
   },
   {
    "group": 3,
@@ -31175,7 +31212,24 @@
      ]
     }
    ],
-   "concepts": []
+   "concepts": [
+    {
+     "label": "square",
+     "strength": 3.17,
+     "layer": 27,
+     "source_tokens": [
+      "square"
+     ]
+    },
+    {
+     "label": "blue",
+     "strength": 0.67,
+     "layer": 26,
+     "source_tokens": [
+      "blue"
+     ]
+    }
+   ]
   },
   {
    "group": 4,
@@ -37884,7 +37938,16 @@
      ]
     }
    ],
-   "concepts": []
+   "concepts": [
+    {
+     "label": "square",
+     "strength": 2.28,
+     "layer": 27,
+     "source_tokens": [
+      "square"
+     ]
+    }
+   ]
   }
  ],
  "answer_tokens": [

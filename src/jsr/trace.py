@@ -215,6 +215,7 @@ def main() -> None:
     ap.add_argument("--max-pixels", type=int, default=MAX_PIXELS)
     ap.add_argument("--top-k", type=int, default=15)
     ap.add_argument("--max-new-tokens", type=int, default=128)
+    ap.add_argument("--labels", action="store_true", help="run M2 label extraction (caption pass + concepts)")
     args = ap.parse_args()
 
     t0 = time.perf_counter()
@@ -230,6 +231,11 @@ def main() -> None:
         max_new_tokens=args.max_new_tokens,
         on_stage=lambda s: print(f"[stage] {s}", flush=True),
     )
+    if args.labels:
+        from jsr.labels import add_concepts
+
+        print("[stage] labels", flush=True)
+        add_concepts(trace, model=model, processor=processor, clip=args.clip)
     Path(args.out).write_text(json.dumps(trace, ensure_ascii=False, indent=1), encoding="utf-8")
     total = time.perf_counter() - t0
     print(f"answer: {trace['answer']}")
