@@ -213,6 +213,41 @@ def verify_attn(layer_idx: int, s_trunc: int = 64, n_cotangents: int = 8) -> Non
     report(f"attn branch layer {layer_idx} (random rows, S={S})", u @ analytic, rows_ref)
 
 
+def verify_layer(layer_idx: int, s_trunc: int = 64) -> None:
+    """Full-layer analytic M vs exact whole-layer autograd on real states.
+
+    The residual here is the known branch-product junction approximation
+    (averaged M_mlp @ averaged M_mid), NOT numerics — reference measured
+    ~1.5e-2 on its FA layers; alarm only if it is order-of-magnitude worse.
+    """
+    from torch.nn.attention import SDPBackend, sdpa_kernel
+
+    from jsr.jacobian import decoder_layer_jacobian
+
+    stash = load_stash()
+    weights = CheckpointWeights()
+    layer = true_layer_fp32(layer_idx, weights)
+    cos_f, sin_f = rope_from_stash(stash)
+    x = stash["h_in"][layer_idx][:s_trunc].to("cuda", torch.float32)
+    cos, sin = cos_f[:, :, :s_trunc], sin_f[:, :, :s_trunc]
+    vm = valid_mask(s_trunc)
+    V = vm.sum()
+
+    def layer_sum(x2d):
+        out = layer(x2d[None], position_embeddings=(cos, sin), attention_mask=None)
+        out = out[0] if isinstance(out, tuple) else out
+        return (out[0] * vm[:, None]).sum(0)
+
+    with sdpa_kernel(SDPBackend.MATH):
+        j_full = torch.func.jacrev(layer_sum, chunk_size=256)(x)
+    ref = torch.einsum("dsk,s->dk", j_full, vm) / V
+    del j_full
+    analytic = decoder_layer_jacobian(layer, x, (cos, sin), vm)
+    rel = ((analytic - ref).norm() / ref.norm()).item()
+    print(f"full layer {layer_idx} (S={s_trunc}): junction rel err = {rel:.3e} "
+          f"(expected ~1e-2 per reference; components verified exact separately)")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("component", choices=["capture", "rmsnorm", "mlp", "attn", "layer"])
@@ -232,8 +267,9 @@ def main() -> None:
     elif args.component == "attn":
         for li in (0, args.layer, 27):
             verify_attn(li)
-    else:
-        raise SystemExit(f"{args.component}: not implemented yet (gate-by-gate)")
+    elif args.component == "layer":
+        for li in (0, args.layer, 27):
+            verify_layer(li)
 
 
 if __name__ == "__main__":

@@ -208,3 +208,33 @@ def attn_branch_jacobian(
         M[c0 : c0 + C] = _fold_norm_project(draw, W_stack, x, w_in, eps_in, mask)
         del primals, out, dy, grads, draw
     return M
+
+
+def decoder_layer_jacobian(
+    layer, h_in: torch.Tensor, rope: tuple[torch.Tensor, torch.Tensor],
+    mask: torch.Tensor, chunk: int = 16,
+) -> torch.Tensor:
+    """Full per-layer Jacobian M_l = d(h_out)/d(h_in), position-averaged.
+
+        r = attn(ln_in(x));  h_mid = x + r;  out = h_mid + mlp(ln_post(h_mid))
+        => M = M_mid + M_mlp_branch @ M_mid,  M_mid = I + M_attn_branch
+
+    Both branch Jacobians are exact within their branch; the single remaining
+    within-layer approximation is the averaged product junction M_mlp @ M_mid
+    (position decorrelation, ~1e-2 rel per the reference's measurements).
+
+    layer: true-weight fp32 decoder layer; h_in: (S, D) residual entering it.
+    """
+    S, D = h_in.shape
+    x = h_in.float()
+    M_attn = attn_branch_jacobian(layer, x, rope, mask, chunk=chunk)
+    with torch.no_grad():
+        r = layer.self_attn(
+            layer.input_layernorm(x[None]),
+            position_embeddings=rope, attention_mask=None,
+        )[0][0]
+    h_mid = x + r
+    M_mlp = mlp_branch_jacobian(layer, h_mid, mask)
+    M_mid = M_attn
+    M_mid.diagonal().add_(1.0)  # I + M_attn, in place
+    return M_mid + M_mlp @ M_mid
