@@ -228,6 +228,24 @@ select:focus {
   color: #fff;
 }
 
+/* hero panel: grid on the left, drill-down pinned to its right */
+.hero-split {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.hero-split .hero-grid {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+.hero-split .hero-drill {
+  flex: 0 1 240px;
+  min-width: 200px;
+  position: sticky;
+  top: 8px;
+}
+
 /* ---------- dashboard grid: video | hero workspace | sidebar ---------- */
 
 .dash {

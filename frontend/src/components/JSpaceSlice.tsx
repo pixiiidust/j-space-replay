@@ -91,8 +91,8 @@ export function AnswerWorkspace({
         <span>Workspace Slice · answer-token × layer</span>
         <span className="muted">click a cell → raw top-10</span>
       </div>
-      <div className="panel-b" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div>
+      <div className="panel-b hero-split">
+        <div className="hero-grid">
           <div className="axis-note" style={{ marginBottom: 3 }}>
             {STRENGTH_AXIS_LABEL}, raw logit — generation replayed on the clip clock;
             tokens were generated after the model saw the whole clip
@@ -110,7 +110,9 @@ export function AnswerWorkspace({
             onPick={(r, c) => setSel({ r, c })}
           />
         </div>
-        <DrillTable title={drill.title} tokens={drill.tokens} />
+        <div className="hero-drill">
+          <DrillTable title={drill.title} tokens={drill.tokens} />
+        </div>
       </div>
     </div>
   );
