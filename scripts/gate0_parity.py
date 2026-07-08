@@ -132,7 +132,7 @@ def main() -> None:
         del ctrl_layer
         torch.cuda.empty_cache()
 
-        true_layer = build_true_layer(model, i, weights, dtype=torch.float16)
+        true_layer = build_true_layer(model.config.text_config, i, weights, dtype=torch.float16)
         true = replay(true_layer, cap)
         del true_layer
         torch.cuda.empty_cache()

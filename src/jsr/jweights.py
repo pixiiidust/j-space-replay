@@ -58,15 +58,25 @@ class CheckpointWeights:
         }
 
 
-def build_true_layer(model, layer_idx: int, weights: CheckpointWeights, dtype=torch.float16):
+def text_config(model_id: str = MODEL_ID):
+    """The text-decoder config straight from the cached checkpoint (SDPA)."""
+    from transformers import AutoConfig
+
+    cfg = AutoConfig.from_pretrained(snapshot_path(model_id), local_files_only=True)
+    cfg = cfg.text_config
+    cfg._attn_implementation = "sdpa"
+    return cfg
+
+
+def build_true_layer(cfg, layer_idx: int, weights: CheckpointWeights, dtype=torch.float16):
     """Decoder layer `layer_idx` rebuilt with original checkpoint weights.
 
+    `cfg` is the text config (model.config.text_config or jweights.text_config()).
     Uses the same transformers layer class and attn implementation as the
     runtime model, so a captured (hidden_states, kwargs) replays exactly.
     """
     from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import Qwen2_5_VLDecoderLayer
 
-    cfg = model.config.text_config
     with torch.device("meta"):
         layer = Qwen2_5_VLDecoderLayer(cfg, layer_idx)
     layer.load_state_dict(weights.layer_state_dict(layer_idx, dtype=dtype), assign=True)
