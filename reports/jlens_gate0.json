@@ -1,0 +1,49 @@
+{
+ "_note": "Gate 0 \u2014 true-weight (bf16 checkpoint, fp16 compute) layer forward vs NF4 runtime layer, same captured input from a real video prefill. rel_err_branch_delta isolates the transformed part (out - in).",
+ "clip": "fixtures/clips/ball_drop.mp4",
+ "question": "Why does the ball fall?",
+ "results": [
+  {
+   "layer": 0,
+   "seq": 827,
+   "control_dequant": {
+    "rel_err_output": 0.0,
+    "rel_err_branch_delta": 0.0,
+    "cos_branch_delta": 1.0
+   },
+   "true_weights": {
+    "rel_err_output": 0.031664,
+    "rel_err_branch_delta": 0.071601,
+    "cos_branch_delta": 0.997458
+   }
+  },
+  {
+   "layer": 12,
+   "seq": 827,
+   "control_dequant": {
+    "rel_err_output": 0.0,
+    "rel_err_branch_delta": 0.0,
+    "cos_branch_delta": 1.0
+   },
+   "true_weights": {
+    "rel_err_output": 0.012527,
+    "rel_err_branch_delta": 0.13895,
+    "cos_branch_delta": 0.990441
+   }
+  },
+  {
+   "layer": 27,
+   "seq": 827,
+   "control_dequant": {
+    "rel_err_output": 0.0,
+    "rel_err_branch_delta": 0.0,
+    "cos_branch_delta": 1.0
+   },
+   "true_weights": {
+    "rel_err_output": 0.087002,
+    "rel_err_branch_delta": 0.113112,
+    "cos_branch_delta": 0.993599
+   }
+  }
+ ]
+}

@@ -23,37 +23,25 @@ from jsr.schema import SCHEMA_VERSION, validate_trace
 from jsr.video import group_frames, sample_frames
 
 
-def run_trace(
+def prepare_video_inputs(
+    processor,
     clip: str | Path,
     question: str = DEFAULT_QUESTION,
     *,
-    model,
-    processor,
     fps: float = 1.0,
     max_pixels: int = MAX_PIXELS,
-    top_k: int = 15,
-    answer_top_k: int = 5,
-    max_new_tokens: int = 128,
-    on_stage=None,
-) -> dict:
+    device="cuda",
+):
+    """Sample a clip and build the processor inputs for one video+question prompt.
+
+    Returns (inputs, sampled, groups) — shared by the trace pipeline, the
+    Gate-0 parity check, and the J-lens fit (which must see the same prompt
+    distribution the lens later reads).
+    """
     from qwen_vl_utils import process_vision_info
 
-    timings: dict[str, float] = {}
-
-    def _stage(name):
-        if on_stage:
-            on_stage(name)
-        timings[name] = time.perf_counter()
-
-    def _done(name):
-        timings[name] = round(time.perf_counter() - timings[name], 2)
-
-    clip = Path(clip)
-    _stage("sampling")
-    sampled = sample_frames(clip, fps=fps)
+    sampled = sample_frames(Path(clip), fps=fps)
     groups = group_frames(sampled)
-    _done("sampling")
-
     messages = [
         {
             "role": "user",
@@ -80,7 +68,39 @@ def run_trace(
         padding=True,
         return_tensors="pt",
         **({"fps": float(fps_kw)} if fps_kw is not None else {}),
-    ).to(model.device)
+    ).to(device)
+    return inputs, sampled, groups
+
+
+def run_trace(
+    clip: str | Path,
+    question: str = DEFAULT_QUESTION,
+    *,
+    model,
+    processor,
+    fps: float = 1.0,
+    max_pixels: int = MAX_PIXELS,
+    top_k: int = 15,
+    answer_top_k: int = 5,
+    max_new_tokens: int = 128,
+    on_stage=None,
+) -> dict:
+    timings: dict[str, float] = {}
+
+    def _stage(name):
+        if on_stage:
+            on_stage(name)
+        timings[name] = time.perf_counter()
+
+    def _done(name):
+        timings[name] = round(time.perf_counter() - timings[name], 2)
+
+    clip = Path(clip)
+    _stage("sampling")
+    inputs, sampled, groups = prepare_video_inputs(
+        processor, clip, question, fps=fps, max_pixels=max_pixels, device=model.device
+    )
+    _done("sampling")
 
     _stage("prefill_and_generate")
     with ResidualCapture(decoder_layers(model)) as cap:
