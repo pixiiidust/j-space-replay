@@ -81,4 +81,7 @@ def build_true_layer(cfg, layer_idx: int, weights: CheckpointWeights, dtype=torc
         layer = Qwen2_5_VLDecoderLayer(cfg, layer_idx)
     layer.load_state_dict(weights.layer_state_dict(layer_idx, dtype=dtype), assign=True)
     layer.eval()
+    # grads flow through activations only; a param that requires grad would
+    # silently chain every downstream Jacobian assembly into one giant graph
+    layer.requires_grad_(False)
     return layer

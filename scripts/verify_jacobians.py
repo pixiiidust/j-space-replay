@@ -152,6 +152,67 @@ def verify_mlp(layer_idx: int, n_pos: int = 8) -> None:
     report(f"mlp branch layer {layer_idx} ({n_pos} real positions)", analytic, ref)
 
 
+def verify_attn(layer_idx: int, s_trunc: int = 64, n_cotangents: int = 8) -> None:
+    """Analytic attention-branch Jacobian vs autograd through the true layer's
+    REAL attention path (SDPA, math backend so it vmaps).
+
+    Check 1 — exact full (D, D) on the first `s_trunc` real positions.
+    Check 2 — random W_o-space cotangent rows at full sequence length.
+    """
+    from torch.nn.attention import SDPBackend, sdpa_kernel
+
+    from jsr.jacobian import attn_branch_jacobian
+
+    stash = load_stash()
+    weights = CheckpointWeights()
+    layer = true_layer_fp32(layer_idx, weights)
+    cos_f, sin_f = rope_from_stash(stash)
+
+    # -- check 1: truncated exact
+    x = stash["h_in"][layer_idx][:s_trunc].to("cuda", torch.float32)
+    cos, sin = cos_f[:, :, :s_trunc], sin_f[:, :, :s_trunc]
+    vm = valid_mask(s_trunc)
+    V = vm.sum()
+
+    def branch_sum(x2d):
+        out = layer.self_attn(
+            layer.input_layernorm(x2d[None]),
+            position_embeddings=(cos, sin), attention_mask=None,
+        )[0][0]
+        return (out * vm[:, None]).sum(0)  # (D,) sum over valid targets
+
+    with sdpa_kernel(SDPBackend.MATH):
+        j_full = torch.func.jacrev(branch_sum, chunk_size=256)(x)  # (D, S', D)
+    ref = torch.einsum("dsk,s->dk", j_full, vm) / V
+    del j_full
+    analytic = attn_branch_jacobian(layer, x, (cos, sin), vm)
+    report(f"attn branch layer {layer_idx} (exact, S={s_trunc})", analytic, ref)
+
+    # -- check 2: random cotangent rows at full length
+    x = stash["h_in"][layer_idx].to("cuda", torch.float32)
+    S = x.shape[0]
+    vm = valid_mask(S)
+    V = vm.sum()
+
+    def branch_full(x2d):
+        return layer.self_attn(
+            layer.input_layernorm(x2d[None]),
+            position_embeddings=(cos_f, sin_f), attention_mask=None,
+        )[0][0]
+
+    torch.manual_seed(1)
+    u = torch.nn.functional.normalize(torch.randn(n_cotangents, x.shape[1], device="cuda"), dim=-1)
+    with sdpa_kernel(SDPBackend.MATH):
+        _, vjp_fn = torch.func.vjp(branch_full, x)
+        rows_ref = []
+        for r in range(n_cotangents):
+            (g,) = vjp_fn(vm[:, None] * u[r][None, :])  # (S, D)
+            rows_ref.append(vm @ g / V)
+    rows_ref = torch.stack(rows_ref)
+    analytic = attn_branch_jacobian(layer, x, (cos_f, sin_f), vm)
+    report(f"attn branch layer {layer_idx} (random rows, S={S})", u @ analytic, rows_ref)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("component", choices=["capture", "rmsnorm", "mlp", "attn", "layer"])
@@ -168,6 +229,9 @@ def main() -> None:
     elif args.component == "mlp":
         for li in (0, args.layer, 27):
             verify_mlp(li)
+    elif args.component == "attn":
+        for li in (0, args.layer, 27):
+            verify_attn(li)
     else:
         raise SystemExit(f"{args.component}: not implemented yet (gate-by-gate)")
 

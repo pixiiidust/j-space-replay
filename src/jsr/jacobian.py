@@ -76,11 +76,11 @@ def mlp_branch_jacobian(
     entering the branch; mask: (S,) validity. Returns (D, D) fp32.
     """
     S, D = h_mid.shape
-    w = layer.post_attention_layernorm.weight.float()
+    w = layer.post_attention_layernorm.weight.detach().float()
     eps = layer.post_attention_layernorm.variance_epsilon
-    W_gate = layer.mlp.gate_proj.weight.float()  # (I, D)
-    W_up = layer.mlp.up_proj.weight.float()      # (I, D)
-    W_down = layer.mlp.down_proj.weight.float()  # (D, I)
+    W_gate = layer.mlp.gate_proj.weight.detach().float()  # (I, D)
+    W_up = layer.mlp.up_proj.weight.detach().float()      # (I, D)
+    W_down = layer.mlp.down_proj.weight.detach().float()  # (D, I)
 
     xf = h_mid.float()
     r = torch.sqrt((xf * xf).mean(dim=-1, keepdim=True) + eps)  # (S, 1)
@@ -104,3 +104,107 @@ def mlp_branch_jacobian(
         P = dcoef * p * (m_over_r / D)[:, None]  # (S, I)
         inner -= P.T @ x_hat
     return (W_down @ inner) / n_valid
+
+
+def _fold_norm_project(
+    draw: torch.Tensor, W_stack: torch.Tensor, x: torch.Tensor,
+    w_norm: torch.Tensor, eps: float, mask: torch.Tensor,
+) -> torch.Tensor:
+    """Backward through the stacked input projections with the input RMSNorm
+    folded per-position, position sum taken BEFORE the single GEMM.
+
+    Uses g^T J_n(s) = (g .* w)/r_s - (g . (w .* x_hat_s)) x_hat_s^T / (D r_s).
+
+    draw: (C, S, F) grads w.r.t. stacked projection outputs; W_stack: (F, D);
+    x: (S, D) pre-norm residual. Returns (C, D) rows of the branch Jacobian.
+    """
+    S, D = x.shape
+    xf = x.float()
+    r = torch.sqrt((xf * xf).mean(dim=-1, keepdim=True) + eps)  # (S, 1)
+    x_hat = xf / r
+    w = w_norm.float()
+    m_over_r = mask.float() / r[:, 0]  # (S,)
+    n_valid = mask.sum()
+
+    A = torch.einsum("csf,s->cf", draw, m_over_r)  # (C, F)
+    term1 = (A @ W_stack) * w[None]  # (C, D)
+    U = (w[None] * x_hat) @ W_stack.T  # (S, F)
+    alpha = torch.einsum("csf,sf->cs", draw, U * m_over_r[:, None])  # (C, S)
+    term2 = (alpha @ x_hat) / D  # (C, D)
+    return (term1 - term2) / n_valid
+
+
+def attn_branch_jacobian(
+    layer, x: torch.Tensor, rope: tuple[torch.Tensor, torch.Tensor],
+    mask: torch.Tensor, chunk: int = 16,
+) -> torch.Tensor:
+    """Jacobian of the attention branch d(self_attn(ln_in(x)))/dx, averaged
+    over valid target AND source positions (cross-position terms included).
+
+    Exact within the branch: cotangents are rows of W_o seeded at every valid
+    target position, backpropagated in chunks through the softmax core (mRoPE +
+    GQA + causal; primals replicated per chunk — vmapped backward blew past
+    VRAM here), then the input RMSNorm is folded per-position before a single
+    stacked-projection GEMM.
+
+    layer: true-weight fp32 decoder layer; x: (S, D) pre-norm residual;
+    rope: (cos, sin) as passed to the runtime layers. Returns (D, D) fp32.
+    """
+    from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
+        apply_multimodal_rotary_pos_emb,
+    )
+
+    attn = layer.self_attn
+    S, D = x.shape
+    H, hd = attn.num_heads, attn.head_dim
+    KV, rf = attn.num_key_value_heads, attn.num_key_value_groups
+    scale = attn.scaling
+    mrope_section = attn.config.rope_parameters["mrope_section"]
+    cos, sin = (t.float() for t in rope)
+
+    w_in = layer.input_layernorm.weight.detach().float()
+    eps_in = layer.input_layernorm.variance_epsilon
+    xf = x.float()
+    xn = xf / torch.sqrt((xf * xf).mean(dim=-1, keepdim=True) + eps_in) * w_in
+
+    W_q, b_q = attn.q_proj.weight.detach().float(), attn.q_proj.bias.detach().float()
+    W_k, b_k = attn.k_proj.weight.detach().float(), attn.k_proj.bias.detach().float()
+    W_v, b_v = attn.v_proj.weight.detach().float(), attn.v_proj.bias.detach().float()
+    W_o = attn.o_proj.weight.detach().float()  # (D, H*hd)
+
+    q_full = xn @ W_q.T + b_q  # (S, H*hd)
+    k_pre = xn @ W_k.T + b_k   # (S, KV*hd)
+    v_pre = xn @ W_v.T + b_v   # (S, KV*hd)
+
+    ar = torch.arange(S, device=x.device)
+    causal = torch.where(ar[None, :] <= ar[:, None], 0.0, -1e9).float()
+
+    def core(qf, kp, vp):
+        # qf: (C, S, H*hd), kp/vp: (C, S, KV*hd) -> (C, S, H*hd)
+        C = qf.shape[0]
+        q = qf.view(C, S, H, hd).transpose(1, 2)   # (C, H, S, hd)
+        k = kp.view(C, S, KV, hd).transpose(1, 2)
+        v = vp.view(C, S, KV, hd).transpose(1, 2)
+        q, k = apply_multimodal_rotary_pos_emb(q, k, cos, sin, mrope_section)
+        k = torch.repeat_interleave(k, rf, dim=1)
+        v = torch.repeat_interleave(v, rf, dim=1)
+        scores = q @ k.transpose(-1, -2) * scale + causal
+        out = torch.softmax(scores, dim=-1) @ v    # (C, H, S, hd)
+        return out.transpose(1, 2).reshape(C, S, H * hd)
+
+    W_stack = torch.cat([W_q, W_k, W_v], dim=0)  # (F, D)
+    M = torch.zeros(D, D, device=x.device)
+    for c0 in range(0, D, chunk):
+        rows_w = W_o[c0 : c0 + chunk]  # (C, H*hd)
+        C = rows_w.shape[0]
+        dy = mask[None, :, None] * rows_w[:, None, :]  # (C, S, H*hd)
+        primals = [
+            t[None].expand(C, *t.shape).clone().requires_grad_()
+            for t in (q_full, k_pre, v_pre)
+        ]
+        out = core(*primals)
+        grads = torch.autograd.grad(out, primals, dy)
+        draw = torch.cat(grads, dim=-1)  # (C, S, F)
+        M[c0 : c0 + C] = _fold_norm_project(draw, W_stack, x, w_in, eps_in, mask)
+        del primals, out, dy, grads, draw
+    return M
