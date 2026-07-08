@@ -41,7 +41,18 @@ GENERAL_CONCEPTS = [
     "red", "green", "blue", "brown", "gray", "white", "black", "yellow",
 ]
 
-_BASELINE_PATH = Path(__file__).parent / "baseline_stats.json"
+# z-score baselines are LENS-SPECIFIC (shares change when the basis changes);
+# make_baseline.py --lens ... regenerates the matching file
+_BASELINE_PATHS = {
+    "logit-lens-v1": Path(__file__).parent / "baseline_stats.json",
+    "j-lens-v1": Path(__file__).parent / "baseline_stats_jlens.json",
+}
+_BASELINE_PATH = _BASELINE_PATHS["logit-lens-v1"]
+
+# concept extraction band per lens: under the raw logit lens, content on
+# visual tokens lives at layers ~20-27 (M1 risk gate); the J-lens floor is
+# set from its own workspace-range evidence (issue #8 grid)
+LAYER_FLOOR = {"logit-lens-v1": 20, "j-lens-v1": 20}
 
 
 def wordlike(tok: str) -> bool:
@@ -59,8 +70,8 @@ def canon(tok: str) -> str:
     return s
 
 
-def load_baseline(path: str | Path | None = None) -> dict:
-    p = Path(path) if path else _BASELINE_PATH
+def load_baseline(path: str | Path | None = None, lens: str = "logit-lens-v1") -> dict:
+    p = Path(path) if path else _BASELINE_PATHS.get(lens, _BASELINE_PATH)
     if not p.exists():
         return {}
     raw = json.loads(p.read_text(encoding="utf-8"))
@@ -129,7 +140,7 @@ def extract_concepts(
     caption: str | None = None,
     z_floor: float = 0.6,
     max_per_group: int = 12,
-    layer_floor: int = 20,
+    layer_floor: int | None = None,
     include_unmatched: bool = False,
 ) -> None:
     """Fill trace[...]["concepts"] in place from raw readouts.
@@ -143,12 +154,16 @@ def extract_concepts(
     tokens as their own labels — noisy, but nothing is hidden either way: the
     full raw readouts stay in the trace for drill-down.
 
-    layer_floor: concepts come from the late-layer band only. The M1 risk gate
-    showed content readouts on visual tokens live at layers ~20-27 under the
-    raw logit lens; mid layers are basis-misaligned junk (J-lens, #8, is the
-    planned fix). Raw readouts for ALL layers stay in the trace regardless.
+    layer_floor: concepts come from the late-layer band only; defaults to the
+    LAYER_FLOOR entry for the trace's lens (M1 risk gate: content readouts on
+    visual tokens live at layers ~20-27 under the raw logit lens; the J-lens
+    band comes from its own #8 evidence). Raw readouts for ALL layers stay in
+    the trace regardless.
     """
-    baseline = baseline if baseline is not None else load_baseline()
+    lens = trace.get("meta", {}).get("lens", "logit-lens-v1")
+    if layer_floor is None:
+        layer_floor = LAYER_FLOOR.get(lens, 20)
+    baseline = baseline if baseline is not None else load_baseline(lens=lens)
     candidates = phrase_candidates(trace, caption)
     cand_words = {c: c.split() for c in candidates}
 
@@ -243,5 +258,6 @@ def add_concepts(trace: dict, model=None, processor=None, clip=None, baseline_pa
     if model is not None and processor is not None and clip is not None:
         caption = caption_pass(clip, model, processor)
         trace["meta"]["caption"] = caption
-    extract_concepts(trace, baseline=load_baseline(baseline_path), caption=caption)
+    lens = trace.get("meta", {}).get("lens", "logit-lens-v1")
+    extract_concepts(trace, baseline=load_baseline(baseline_path, lens=lens), caption=caption)
     return trace
