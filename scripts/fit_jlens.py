@@ -108,7 +108,7 @@ def fit(corpus: list[Path], out_path: Path, chunk: int, resume: bool) -> None:
         assert state["corpus"] == [c.stem for c in corpus], "checkpoint corpus mismatch"
         next_l = state["next_l"]
         J_sum = state["J_sum"]
-        J_cur = [j.cuda() for j in state["J_cur"]]
+        J_cur = list(state["J_cur"])  # CPU; moved to GPU per use
         print(f"resuming at layer {next_l}")
     else:
         w_norm = weights.tensor("model.norm.weight")
@@ -116,9 +116,9 @@ def fit(corpus: list[Path], out_path: Path, chunk: int, resume: bool) -> None:
         J_cur = []
         for st in stashes:
             h_final = st["h_final"].to("cuda", torch.float32)
-            J = rms_norm_jacobian(h_final, w_norm, eps, valid_mask(h_final.shape[0]))
+            J = rms_norm_jacobian(h_final, w_norm, eps, valid_mask(h_final.shape[0])).cpu()
             J_cur.append(J)
-            J_sum[n_layers - 1] += J.cpu()
+            J_sum[n_layers - 1] += J
         next_l = n_layers - 1
 
     for l in range(next_l, 0, -1):
@@ -127,10 +127,19 @@ def fit(corpus: list[Path], out_path: Path, chunk: int, resume: bool) -> None:
         for i, st in enumerate(stashes):
             h_in = st["h_in"][l].to("cuda", torch.float32)
             rope = (st["cos"].cuda(), st["sin"].cuda())
-            M = decoder_layer_jacobian(layer, h_in, rope, valid_mask(h_in.shape[0]), chunk=chunk)
-            J_cur[i] = J_cur[i] @ M
-            J_sum[l - 1] += J_cur[i].cpu()
+            S = h_in.shape[0]
+            # bound the (C, H, S, S) backward peak: ~6.7 GiB at (16, 827) —
+            # anything past ~15 GiB silently spills to system RAM on Windows
+            # (sysmem fallback) and runs 4-5x slower, which is how the first
+            # fit attempt degraded from 614 s/layer to ~2700 s/layer
+            chunk_eff = max(4, min(chunk, int(chunk * (827.0 / S) ** 2)))
+            M = decoder_layer_jacobian(layer, h_in, rope, valid_mask(S), chunk=chunk_eff)
+            J_cur[i] = ((J_cur[i].cuda() @ M).cpu())
+            J_sum[l - 1] += J_cur[i]
             del M
+            # 15 distinct seq lengths cycling per layer fragment the caching
+            # allocator; releasing between clips keeps the pool dense
+            torch.cuda.empty_cache()
         del layer
         torch.cuda.empty_cache()
         print(f"layer {l}: {time.perf_counter() - t0:.0f}s "
