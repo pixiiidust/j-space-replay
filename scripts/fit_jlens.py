@@ -5,10 +5,20 @@ Two phases:
      (video + default question), stash per-layer inputs + rotary embeddings
      to jlens/acts/ (fp16, ~170 MB/clip).
   B) fit — model unloaded. Chain top-down with true-weight fp32 layers:
-     J_27 = J_finalnorm;  J_{l-1} = J_l @ M_l  (M_l at the layer's real input)
+     J_27 = I;  J_{l-1} = J_l @ M_l  (M_l at the layer's real input)
      accumulated per clip, layer-major so each layer's weights load once.
      Averaging J over clips is the lens's stated position/prompt-averaging
      approximation.
+
+     Seed convention (paper-faithful, deviates from the jlens-qwen36 repo):
+     the workspace paper defines J_l = E[dh_final,t'/dh_l,t] on the PRE-norm
+     final residual with the norm applied only at read time — "the logit
+     lens ... corresponds to setting J_l = I in our formulation", so the
+     final layer's J is the identity and the J-lens reduces exactly to the
+     logit lens there. The reference repo instead seeds the chain with the
+     final-norm Jacobian AND re-norms at read time; measured here, that
+     extra factor degrades late-layer answer readouts (L27 motor share
+     90% -> 34%) — see reports/jlens_evidence.md.
 
 Output: jlens/j_lens_v1.pt — (28, D, D) fp32 + honesty meta. NOT committed
 (jlens/ is gitignored); this script regenerates it. Checkpointed every 4
@@ -32,7 +42,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).parent))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from jsr.jacobian import decoder_layer_jacobian, rms_norm_jacobian, valid_mask  # noqa: E402
+from jsr.jacobian import decoder_layer_jacobian, valid_mask  # noqa: E402
 from jsr.jweights import CheckpointWeights, build_true_layer, text_config  # noqa: E402
 
 ACTS = Path("jlens/acts")
@@ -99,7 +109,7 @@ def capture_corpus(corpus: list[Path]) -> None:
 def fit(corpus: list[Path], out_path: Path, chunk: int, resume: bool) -> None:
     weights = CheckpointWeights()
     cfg = text_config()
-    n_layers, eps = cfg.num_hidden_layers, cfg.rms_norm_eps
+    n_layers = cfg.num_hidden_layers
     D = cfg.hidden_size
     stashes = [torch.load(ACTS / f"{c.stem}.pt", weights_only=True) for c in corpus]
 
@@ -111,14 +121,10 @@ def fit(corpus: list[Path], out_path: Path, chunk: int, resume: bool) -> None:
         J_cur = list(state["J_cur"])  # CPU; moved to GPU per use
         print(f"resuming at layer {next_l}")
     else:
-        w_norm = weights.tensor("model.norm.weight")
         J_sum = torch.zeros(n_layers, D, D)
-        J_cur = []
-        for st in stashes:
-            h_final = st["h_final"].to("cuda", torch.float32)
-            J = rms_norm_jacobian(h_final, w_norm, eps, valid_mask(h_final.shape[0])).cpu()
-            J_cur.append(J)
-            J_sum[n_layers - 1] += J
+        eye = torch.eye(D)
+        J_cur = [eye.clone() for _ in stashes]  # J_final = I (paper convention)
+        J_sum[n_layers - 1] = eye * len(stashes)
         next_l = n_layers - 1
 
     for l in range(next_l, 0, -1):
@@ -164,6 +170,9 @@ def fit(corpus: list[Path], out_path: Path, chunk: int, resume: bool) -> None:
                 "position/prompt-averaged Jacobians chained as prod of averages "
                 "(branch junction ~1-4% rel per layer, layer 0 excluded from chain)",
                 "corpus is synthetic 2-D clips + default question, prefill positions only",
+                "chain seeded J_final = I per the workspace paper (J maps to the "
+                "PRE-norm final residual; norm applied at read time) — deviates "
+                "from the jlens-qwen36 repo, which folds the final-norm Jacobian in",
             ],
             "attribution": "analytic recipe ported from WeZZard/jlens-qwen36 (Apache 2.0)",
         },
