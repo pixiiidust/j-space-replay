@@ -256,7 +256,9 @@ select:focus {
 
 .dash {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 360px;
+  /* narrow sidebar: concepts + events are compact lists — the workspace slice
+     gets the width */
+  grid-template-columns: 300px minmax(0, 1fr) 250px;
   gap: 10px;
   padding: 10px 12px 24px;
   align-items: start;
