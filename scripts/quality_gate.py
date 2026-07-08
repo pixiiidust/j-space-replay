@@ -51,8 +51,17 @@ def top10_concepts(trace: dict) -> list[dict]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("-o", "--out", default="reports/m2_quality_gate.json")
+    ap.add_argument("-o", "--out", default=None, help="defaults per lens")
+    ap.add_argument("--lens", choices=["logit-lens-v1", "j-lens-v1"], default="logit-lens-v1")
     args = ap.parse_args()
+    if args.out is None:
+        args.out = ("reports/m2_quality_gate.json" if args.lens == "logit-lens-v1"
+                    else "reports/m2_quality_gate_jlens.json")
+    jlens = None
+    if args.lens == "j-lens-v1":
+        from jsr.lens import JLens
+
+        jlens = JLens.load()
 
     clip_dir = Path("fixtures/clips")
     model, processor = load_model_and_processor()
@@ -62,7 +71,7 @@ def main() -> None:
         if not path.exists():
             assert spec is not None, f"missing fixture {name}"
             write_clip(path, 6, scene(**spec))
-        trace = run_trace(path, model=model, processor=processor)
+        trace = run_trace(path, model=model, processor=processor, jlens=jlens)
         add_concepts(trace, model=model, processor=processor, clip=path)
         top = top10_concepts(trace)
         results.append({

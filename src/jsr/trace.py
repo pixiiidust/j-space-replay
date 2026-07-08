@@ -16,44 +16,32 @@ from pathlib import Path
 import torch
 
 from jsr.capture import ResidualCapture
-from jsr.lens import decode_tokens, lens_topk
+from jsr.lens import JLens, lens_topk_layers
 from jsr.model import DEFAULT_QUESTION, MAX_PIXELS, decoder_layers, load_model_and_processor
 from jsr.positions import build_position_map
 from jsr.schema import SCHEMA_VERSION, validate_trace
 from jsr.video import group_frames, sample_frames
 
 
-def run_trace(
+def prepare_video_inputs(
+    processor,
     clip: str | Path,
     question: str = DEFAULT_QUESTION,
     *,
-    model,
-    processor,
     fps: float = 1.0,
     max_pixels: int = MAX_PIXELS,
-    top_k: int = 15,
-    answer_top_k: int = 5,
-    max_new_tokens: int = 128,
-    on_stage=None,
-) -> dict:
+    device="cuda",
+):
+    """Sample a clip and build the processor inputs for one video+question prompt.
+
+    Returns (inputs, sampled, groups) — shared by the trace pipeline, the
+    Gate-0 parity check, and the J-lens fit (which must see the same prompt
+    distribution the lens later reads).
+    """
     from qwen_vl_utils import process_vision_info
 
-    timings: dict[str, float] = {}
-
-    def _stage(name):
-        if on_stage:
-            on_stage(name)
-        timings[name] = time.perf_counter()
-
-    def _done(name):
-        timings[name] = round(time.perf_counter() - timings[name], 2)
-
-    clip = Path(clip)
-    _stage("sampling")
-    sampled = sample_frames(clip, fps=fps)
+    sampled = sample_frames(Path(clip), fps=fps)
     groups = group_frames(sampled)
-    _done("sampling")
-
     messages = [
         {
             "role": "user",
@@ -80,7 +68,40 @@ def run_trace(
         padding=True,
         return_tensors="pt",
         **({"fps": float(fps_kw)} if fps_kw is not None else {}),
-    ).to(model.device)
+    ).to(device)
+    return inputs, sampled, groups
+
+
+def run_trace(
+    clip: str | Path,
+    question: str = DEFAULT_QUESTION,
+    *,
+    model,
+    processor,
+    fps: float = 1.0,
+    max_pixels: int = MAX_PIXELS,
+    top_k: int = 15,
+    answer_top_k: int = 5,
+    max_new_tokens: int = 128,
+    on_stage=None,
+    jlens: JLens | None = None,
+) -> dict:
+    timings: dict[str, float] = {}
+
+    def _stage(name):
+        if on_stage:
+            on_stage(name)
+        timings[name] = time.perf_counter()
+
+    def _done(name):
+        timings[name] = round(time.perf_counter() - timings[name], 2)
+
+    clip = Path(clip)
+    _stage("sampling")
+    inputs, sampled, groups = prepare_video_inputs(
+        processor, clip, question, fps=fps, max_pixels=max_pixels, device=model.device
+    )
+    _done("sampling")
 
     _stage("prefill_and_generate")
     with ResidualCapture(decoder_layers(model)) as cap:
@@ -106,16 +127,14 @@ def run_trace(
     _stage("lens_decode")
     prefill = cap.prefill_stack()  # (L, seq, d)
     steps = cap.steps_stack()  # (L, n_steps, d)
-    n_layers, _, d = prefill.shape
+    n_layers = prefill.shape[0]
 
     # frame-group x layer readouts: decode EVERY patch token, aggregate top-3
     # tokens by the share of the group's patches that read them. Mean-pooling
     # the residuals first washes signal out (verified on ball_drop at the risk
     # gate: per-patch shows brown/red/ball at late layers; pooled shows junk).
     vis = prefill[:, pm.visual_indices, :]  # (L, V, d)
-    n_visual = vis.shape[1]
-    patch_ids, _ = lens_topk(model, vis.reshape(-1, d), k=3, chunk=1024)
-    patch_ids = patch_ids.reshape(n_layers, n_visual, 3)
+    patch_ids, _ = lens_topk_layers(model, vis, k=3, chunk=1024, jlens=jlens)
     per_group = pm.grid[1] * pm.grid[2]
 
     frame_groups = []
@@ -158,15 +177,13 @@ def run_trace(
             else [prefill[:, -1:, :]],
             dim=1,
         )  # (L, n_producing, d)
-        a_ids, a_vals = lens_topk(model, producing.permute(1, 0, 2).reshape(-1, d), k=answer_top_k)
-        a_tokens = decode_tokens(tokenizer, a_ids)
+        a_ids, a_vals = lens_topk_layers(model, producing, k=answer_top_k, jlens=jlens)
         for i in range(n_producing):
             by_layer = {}
             for layer in range(n_layers):
-                row = i * n_layers + layer
                 by_layer[str(layer)] = {
-                    "top_tokens": a_tokens[row],
-                    "strengths": [round(v, 3) for v in a_vals[row].tolist()],
+                    "top_tokens": [tokenizer.decode([t]) for t in a_ids[layer, i].tolist()],
+                    "strengths": [round(v, 3) for v in a_vals[layer, i].tolist()],
                 }
             answer_tokens.append(
                 {"token": tokenizer.decode([answer_ids[i]]), "readouts_by_layer": by_layer}
@@ -185,7 +202,8 @@ def run_trace(
         "answer": answer,
         "meta": {
             "model": "qwen2.5-vl-7b-instruct-bnb-nf4",
-            "lens": "logit-lens-v1",
+            "lens": jlens.meta["lens"] if jlens else "logit-lens-v1",
+            **({"lens_caveats": jlens.meta["caveats"]} if jlens else {}),
             "temporal_resolution_frames": 2,
             "strength_normalization": "patch-share-top3 (visual) / raw-logit (answer)",
             "n_layers": n_layers,
@@ -216,9 +234,14 @@ def main() -> None:
     ap.add_argument("--top-k", type=int, default=15)
     ap.add_argument("--max-new-tokens", type=int, default=128)
     ap.add_argument("--labels", action="store_true", help="run M2 label extraction (caption pass + concepts)")
+    ap.add_argument(
+        "--lens", choices=["logit-lens-v1", "j-lens-v1"], default="logit-lens-v1",
+        help="j-lens-v1 needs jlens/j_lens_v1.pt (scripts/fit_jlens.py)",
+    )
     args = ap.parse_args()
 
     t0 = time.perf_counter()
+    jlens = JLens.load() if args.lens == "j-lens-v1" else None
     model, processor = load_model_and_processor()
     trace = run_trace(
         args.clip,
@@ -230,6 +253,7 @@ def main() -> None:
         top_k=args.top_k,
         max_new_tokens=args.max_new_tokens,
         on_stage=lambda s: print(f"[stage] {s}", flush=True),
+        jlens=jlens,
     )
     if args.labels:
         from jsr.labels import add_concepts

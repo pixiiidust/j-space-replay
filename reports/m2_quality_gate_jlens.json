@@ -1,0 +1,253 @@
+[
+ {
+  "clip": "ball_drop.mp4",
+  "known_content": "red ball rolls right along brown table, falls off edge ~4s, bounces on gray floor",
+  "answer": "The video shows a simple animation of a red ball moving along a horizontal brown bar. The ball starts at the left end of the bar and moves to the right, eventually falling off the bar onto a gray surf",
+  "caption": "red ball, brown bar, white background, red ball moves left to right",
+  "top10": [
+   {
+    "label": "brown",
+    "strength": 4.58,
+    "layer": 27,
+    "group": 3,
+    "source_tokens": [
+     "brown"
+    ]
+   },
+   {
+    "label": "red",
+    "strength": 0.85,
+    "layer": 27,
+    "group": 1,
+    "source_tokens": [
+     "red"
+    ]
+   }
+  ]
+ },
+ {
+  "clip": "shape_morph.mp4",
+  "known_content": "blue square appears at 2s on white bg, grows, turns green at 6s",
+  "answer": "The video shows a sequence of two frames:\n\n1. The first frame displays a blue square with a smaller blue square inside it, both centered on a white background.\n2. The second frame transitions to show ",
+  "caption": "blue square, green square, transition",
+  "top10": [
+   {
+    "label": "square",
+    "strength": 7.89,
+    "layer": 27,
+    "group": 3,
+    "source_tokens": [
+     "square"
+    ]
+   },
+   {
+    "label": "blue",
+    "strength": 4.99,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "blue"
+    ]
+   },
+   {
+    "label": "smaller",
+    "strength": 4.17,
+    "layer": 23,
+    "group": 1,
+    "source_tokens": [
+     "smaller"
+    ]
+   },
+   {
+    "label": "blue square",
+    "strength": 4.16,
+    "layer": 27,
+    "group": 3,
+    "source_tokens": [
+     "blue",
+     "square"
+    ]
+   },
+   {
+    "label": "white",
+    "strength": 1.39,
+    "layer": 23,
+    "group": 0,
+    "source_tokens": [
+     "white"
+    ]
+   },
+   {
+    "label": "inside",
+    "strength": 1.39,
+    "layer": 23,
+    "group": 1,
+    "source_tokens": [
+     "inside"
+    ]
+   }
+  ]
+ },
+ {
+  "clip": "traffic.mp4",
+  "known_content": "traffic light red->green at 5s; gray car starts moving right",
+  "answer": "The video depicts a simple animation of a traffic light and a moving vehicle. The traffic light starts with the red light illuminated, indicating that vehicles should stop. As time progresses, the red",
+  "caption": "traffic light, red, green, car, gray, moving, road, gray",
+  "top10": [
+   {
+    "label": "traffic",
+    "strength": 5.82,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "traffic"
+    ]
+   },
+   {
+    "label": "light",
+    "strength": 3.34,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "light"
+    ]
+   },
+   {
+    "label": "traffic light",
+    "strength": 3.34,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "traffic",
+     "light"
+    ]
+   },
+   {
+    "label": "signaling",
+    "strength": 2.51,
+    "layer": 27,
+    "group": 1,
+    "source_tokens": [
+     "signal"
+    ]
+   }
+  ]
+ },
+ {
+  "clip": "gate_blue_circle_drop.mp4",
+  "known_content": "blue circle drops from top, white background",
+  "answer": "The video shows two blue circles moving across the screen. The top circle moves from left to right, while the bottom circle remains stationary for a moment before also moving from left to right. Both ",
+  "caption": "blue circle, white background, moving up, disappearing, reappearing, moving down",
+  "top10": [
+   {
+    "label": "background",
+    "strength": 1.24,
+    "layer": 27,
+    "group": 1,
+    "source_tokens": [
+     "background"
+    ]
+   },
+   {
+    "label": "blue",
+    "strength": 0.85,
+    "layer": 27,
+    "group": 0,
+    "source_tokens": [
+     "blue"
+    ]
+   }
+  ]
+ },
+ {
+  "clip": "gate_green_square_slide.mp4",
+  "known_content": "green square slides left-to-right, dark background",
+  "answer": "The image shows two green squares side by side against a dark background. There is no animation or movement depicted in the still image, so there is nothing happening in terms of action or change betw",
+  "caption": "green squares, dark background, no movement",
+  "top10": [
+   {
+    "label": "green",
+    "strength": 4.19,
+    "layer": 27,
+    "group": 1,
+    "source_tokens": [
+     "green"
+    ]
+   },
+   {
+    "label": "black",
+    "strength": 1.27,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "black"
+    ]
+   }
+  ]
+ },
+ {
+  "clip": "gate_red_square_grow.mp4",
+  "known_content": "red square grows in center, white background",
+  "answer": "The video starts with a white background. Gradually, a red square appears in the center of the screen. The square remains stationary and does not change in size or position throughout the video.",
+  "caption": "red square, white background, no movement",
+  "top10": []
+ },
+ {
+  "clip": "gate_yellow_circle_slide.mp4",
+  "known_content": "yellow circle slides left-to-right, white background",
+  "answer": "The video shows two yellow circles moving towards each other on a white background. As they approach, they eventually collide and merge into one larger circle.",
+  "caption": "yellow circles, white background, moving together",
+  "top10": [
+   {
+    "label": "background",
+    "strength": 2.06,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "background"
+    ]
+   }
+  ]
+ },
+ {
+  "clip": "gate_purple_square_drop.mp4",
+  "known_content": "purple square drops from top, dark background",
+  "answer": "The video shows two purple squares moving vertically on a dark background. The top square moves upwards, and the bottom square moves downwards. Both squares move at a consistent speed and eventually d",
+  "caption": "purple square, dark background, two squares, one above another, moving up and down",
+  "top10": [
+   {
+    "label": "square",
+    "strength": 2.09,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "square"
+    ]
+   }
+  ]
+ },
+ {
+  "clip": "gate_green_circle_grow.mp4",
+  "known_content": "green circle grows in center, dark background",
+  "answer": "The video starts with a black screen, and then a green circle appears in the center of the screen. The circle remains stationary for a few seconds before it begins to expand outward, growing larger un",
+  "caption": "green circle, dark background, no movement",
+  "top10": []
+ },
+ {
+  "clip": "gate_blue_square_slide.mp4",
+  "known_content": "blue square slides left-to-right, white background",
+  "answer": "The video shows a blue rectangle that appears to be moving horizontally across the screen. The rectangle moves from left to right, covering more of the screen as it progresses. There is no additional ",
+  "caption": "blue rectangle, white background, blue vertical line, rectangle moving right, rectangle splitting into two rectangles",
+  "top10": [
+   {
+    "label": "blue",
+    "strength": 1.27,
+    "layer": 27,
+    "group": 1,
+    "source_tokens": [
+     "blue"
+    ]
+   }
+  ]
+ }
+]

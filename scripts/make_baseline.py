@@ -58,9 +58,20 @@ def scene(color, shape, motion, bg):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="src/jsr/baseline_stats.json")
+    ap.add_argument("--out", default=None, help="defaults to the lens-specific stats file")
     ap.add_argument("--seconds", type=int, default=6)
+    ap.add_argument("--lens", choices=["logit-lens-v1", "j-lens-v1"], default="logit-lens-v1")
     args = ap.parse_args()
+
+    from jsr.labels import _BASELINE_PATHS  # lens -> shipped stats path
+
+    if args.out is None:
+        args.out = str(_BASELINE_PATHS[args.lens])
+    jlens = None
+    if args.lens == "j-lens-v1":
+        from jsr.lens import JLens
+
+        jlens = JLens.load()
 
     combos = list(itertools.product(COLORS, ["circle", "square"], ["slide", "drop", "grow"],
                                     BACKGROUNDS))[::3][:20]  # spread over the grid, 20 clips
@@ -75,7 +86,7 @@ def main() -> None:
         path = clip_dir / f"baseline_{i:02d}_{color}_{shape}_{motion}_{bg}.mp4"
         if not path.exists():
             write_clip(path, args.seconds, scene(color, shape, motion, bg))
-        trace = run_trace(path, model=model, processor=processor)
+        trace = run_trace(path, model=model, processor=processor, jlens=jlens)
         for g in trace["frame_groups"]:
             n_cells += 1
             for r in g["raw_readouts"]:
@@ -115,6 +126,7 @@ def main() -> None:
                  f"for tokens present in >= {common_frac:.0%} of baseline cells. Synthetic 2-D "
                  f"baseline corpus ({len(combos)} clips, {n_cells} cells); demo-quality.",
         "version": 2,
+        "lens": args.lens,
         "layers": layers,
         "common_tokens": common_tokens,
     }

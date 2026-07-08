@@ -21,11 +21,13 @@ works. Their licenses are their own; this NOTICE credits them as required.
 2. WeZZard/jlens-qwen36
    - Source:  https://github.com/WeZZard/jlens-qwen36
    - License: Apache License 2.0
-   - Use:     implementation-pattern reference for the analytic J-lens fit (see
-              PLAN.md "J-lens borrow plan"). No code is copied into this repo at
-              v0.1.0; the recipe (analytic per-layer Jacobians, top-down chain,
-              workspace-range layer selection, honesty framing) is adapted, with
-              attribution, as the post-ship J-lens (issue #8) is implemented.
+   - Use:     the analytic J-lens recipe (closed-form RMSNorm Jacobian, SwiGLU
+              Hadamard trick, W_o-row cotangents through the softmax core,
+              per-position input-norm folding, top-down chain, prompt-averaged
+              fit, workspace-range layer selection) is ported to PyTorch in
+              src/jsr/jacobian.py + scripts/fit_jlens.py (issue #8). The port
+              is a re-implementation of the pattern for Qwen2.5-VL; none of the
+              MLX/Metal/GatedDeltaNet code transfers.
 
 Research anchor (cited, not a code dependency):
    Anthropic, "Verbalizable Representations Form a Global Workspace in Language
