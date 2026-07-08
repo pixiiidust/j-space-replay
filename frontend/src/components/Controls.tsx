@@ -20,7 +20,7 @@ export function Controls({ clock, trace, model }: Props) {
   return (
     <div className="panel">
       <div className="panel-h">
-        <span>Video Player</span>
+        <span>Transport</span>
         <span className="muted">
           group g{clock.groupIndex} / {trace.frame_groups.length}
         </span>

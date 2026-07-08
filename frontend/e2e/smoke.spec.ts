@@ -31,7 +31,7 @@ test("full replay loop", async ({ page }) => {
   //    (exclude the video overlay canvas; the timeline is the first data canvas)
   const canvas = page.locator("canvas:not(.video-overlay)").first();
   await canvas.click({ position: { x: 160, y: 40 } });
-  await expect(page.getByText(/raw top-10/)).toBeVisible();
+  await expect(page.getByText(/raw top-10/).first()).toBeVisible();
 
   // pin a concept + jump to peak
   await page.getByRole("button", { name: /^peak$/ }).first().click();

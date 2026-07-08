@@ -5,16 +5,14 @@ import { buildTimeline, traceDuration } from "../trace/selectors";
 import { deriveEvents } from "../trace/events";
 import { bestLayerForWord, patchHeatmapForWord } from "../trace/jspace";
 import { useClock } from "../hooks/useClock";
-import { DEFAULT_QUESTION } from "../constants";
 import { HonestyBanner } from "../components/HonestyBanner";
 import { VideoPanel, type OverlayMode } from "../components/VideoPanel";
 import { Controls } from "../components/Controls";
+import { QueryConsole } from "../components/QueryConsole";
 import { TimelineHeatmap } from "../components/TimelineHeatmap";
-import { JSpaceSlice } from "../components/JSpaceSlice";
+import { AnswerWorkspace, GroupLayerPanel } from "../components/JSpaceSlice";
 import { ConceptBoard } from "../components/ConceptBoard";
 import { EventLog } from "../components/EventLog";
-
-type Tab = "dashboard" | "replay" | "lens" | "events";
 
 interface Props {
   traceId: string;
@@ -30,8 +28,6 @@ export function ReplayScreen({ traceId, onReAsk, onOpenLibrary }: Props) {
   const [pinned, setPinned] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [overlay, setOverlay] = useState<OverlayMode>("clean");
-  const [tab, setTab] = useState<Tab>("dashboard");
-  const [reAskQ, setReAskQ] = useState(DEFAULT_QUESTION);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -55,7 +51,6 @@ export function ReplayScreen({ traceId, onReAsk, onOpenLibrary }: Props) {
 
   return <ReplayBody
     trace={trace}
-    traceId={traceId}
     videoRef={videoRef}
     videoAvailable={videoAvailable}
     setVideoAvailable={setVideoAvailable}
@@ -67,10 +62,6 @@ export function ReplayScreen({ traceId, onReAsk, onOpenLibrary }: Props) {
     setHidden={setHidden}
     overlay={overlay}
     setOverlay={setOverlay}
-    tab={tab}
-    setTab={setTab}
-    reAskQ={reAskQ}
-    setReAskQ={setReAskQ}
     onReAsk={onReAsk}
     onOpenLibrary={onOpenLibrary}
   />;
@@ -79,7 +70,6 @@ export function ReplayScreen({ traceId, onReAsk, onOpenLibrary }: Props) {
 // Split so hooks below run only once the trace is loaded.
 function ReplayBody(props: {
   trace: Trace;
-  traceId: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   videoAvailable: boolean;
   setVideoAvailable(b: boolean): void;
@@ -91,17 +81,12 @@ function ReplayBody(props: {
   setHidden(s: Set<string>): void;
   overlay: OverlayMode;
   setOverlay(m: OverlayMode): void;
-  tab: Tab;
-  setTab(t: Tab): void;
-  reAskQ: string;
-  setReAskQ(s: string): void;
   onReAsk(videoId: string, question: string): void;
   onOpenLibrary(): void;
 }) {
   const {
     trace, videoRef, videoAvailable, setVideoAvailable, selectedRow, setSelectedRow,
-    pinned, setPinned, hidden, setHidden, overlay, setOverlay, tab, setTab,
-    reAskQ, setReAskQ, onReAsk, onOpenLibrary,
+    pinned, setPinned, hidden, setHidden, overlay, setOverlay, onReAsk, onOpenLibrary,
   } = props;
 
   const model = useMemo(() => buildTimeline(trace), [trace]);
@@ -110,6 +95,11 @@ function ReplayBody(props: {
 
   const selRow = model.rows[selectedRow] ?? model.rows[0] ?? null;
   const curGroup = trace.frame_groups[clock.groupIndex];
+
+  // which answer token the replay is currently "forming"
+  const nAnswer = trace.answer_tokens.length;
+  const fraction = clock.duration > 0 ? Math.min(1, clock.time / clock.duration) : 1;
+  const answerRow = nAnswer > 0 ? Math.min(nAnswer - 1, Math.floor(fraction * nAnswer)) : 0;
 
   // patch heatmap for the selected concept at the current frame group
   const patch = useMemo(() => {
@@ -150,26 +140,26 @@ function ReplayBody(props: {
           <b>{meta.n_layers}</b> | concepts <b>{model.mode === "concepts" ? model.rows.length : 0}</b>{" "}
           | model <b>{meta.model}</b> | lens <b>{meta.lens}</b>
         </div>
-        <div className="metaline" style={{ marginTop: 2 }}>
-          Q: <b>{trace.question}</b> — A: {trace.answer.slice(0, 120)}
-          {trace.answer.length > 120 ? "…" : ""}
-        </div>
       </div>
 
       <div style={{ padding: "8px 12px 0" }}>
         <HonestyBanner />
       </div>
 
-      <div className="tabs">
-        {(["dashboard", "replay", "lens", "events"] as Tab[]).map((t) => (
-          <button key={t} className={"btn" + (tab === t ? " active" : "")} onClick={() => setTab(t)}>
-            {t}
-          </button>
-        ))}
+      {/* question in, answer out — the contract; the machinery below explains it */}
+      <div style={{ padding: "8px 12px 0" }}>
+        <QueryConsole
+          trace={trace}
+          answerRow={answerRow}
+          onSeekToken={(i) =>
+            clock.seek(nAnswer > 0 ? ((i + 0.5) / nAnswer) * clock.duration : 0)
+          }
+          onReAsk={onReAsk}
+        />
       </div>
 
       <div className="dash">
-        {/* LEFT */}
+        {/* LEFT — the clip and its transport */}
         <div className="col">
           <div className="panel">
             <div className="panel-h">
@@ -179,7 +169,6 @@ function ReplayBody(props: {
                   <button
                     key={m}
                     className={"btn" + (overlay === m ? " active" : "")}
-                    style={overlay === m ? { borderColor: "#113f8c", color: "#113f8c" } : undefined}
                     onClick={() => setOverlay(m)}
                   >
                     {m}
@@ -200,66 +189,27 @@ function ReplayBody(props: {
           <Controls clock={clock} trace={trace} model={model} />
         </div>
 
-        {/* CENTER — the workspace slice is the replay's hero surface: it lights
-            up on the playback clock (frame groups past the playhead, answer
-            tokens revealed proportionally). */}
+        {/* CENTER — hero: the answer forming across layers on the playback clock */}
         <div className="col">
-          {(tab === "dashboard" || tab === "replay" || tab === "lens") && (
-            <JSpaceSlice
-              trace={trace}
-              currentGroup={clock.groupIndex}
-              time={clock.time}
-              duration={clock.duration}
-              onSeekGroup={(idx) => clock.seekGroup(idx)}
-            />
-          )}
-          {(tab === "dashboard" || tab === "replay") && (
-            <TimelineHeatmap
-              model={model}
-              currentGroup={clock.groupIndex}
-              selectedRow={selectedRow}
-              onPick={(rowIdx, groupIdx) => {
-                setSelectedRow(rowIdx);
-                clock.seekGroup(groupIdx);
-              }}
-            />
-          )}
-          {tab === "events" && (
-            <EventLog
-              events={events}
-              onPick={(ev) => {
-                clock.seek(ev.time);
-                const idx = model.rows.findIndex((r) => r.label === ev.label);
-                if (idx >= 0) setSelectedRow(idx);
-              }}
-            />
-          )}
-
-          {/* ask another question -> re-runs the pipeline */}
-          <div className="panel">
-            <div className="panel-h"><span>Ask another question</span><span className="muted">re-runs pipeline</span></div>
-            <div className="panel-b">
-              <div className="controls" style={{ gap: 6 }}>
-                <input
-                  type="text"
-                  style={{ flex: 1, minWidth: 180 }}
-                  value={reAskQ}
-                  onChange={(e) => setReAskQ(e.target.value)}
-                  aria-label="new question"
-                />
-                <button
-                  className="btn primary"
-                  onClick={() => onReAsk(trace.video_id, reAskQ.trim() || DEFAULT_QUESTION)}
-                >
-                  re-ask ▶
-                </button>
-              </div>
-            </div>
-          </div>
+          <AnswerWorkspace trace={trace} answerRow={answerRow} />
         </div>
 
-        {/* RIGHT */}
+        {/* RIGHT — sidebar: what exists at each frame group, then the derived views */}
         <div className="col">
+          <GroupLayerPanel
+            trace={trace}
+            currentGroup={clock.groupIndex}
+            onSeekGroup={(idx) => clock.seekGroup(idx)}
+          />
+          <TimelineHeatmap
+            model={model}
+            currentGroup={clock.groupIndex}
+            selectedRow={selectedRow}
+            onPick={(rowIdx, groupIdx) => {
+              setSelectedRow(rowIdx);
+              clock.seekGroup(groupIdx);
+            }}
+          />
           <ConceptBoard
             model={model}
             selectedRow={selectedRow}
