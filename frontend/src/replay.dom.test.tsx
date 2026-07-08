@@ -43,8 +43,8 @@ describe("replay dashboard mounts and drives", () => {
     expect(screen.getByText(/J-Space Timeline/)).toBeTruthy();
     expect(screen.getByText(/Concepts/)).toBeTruthy();
     expect(screen.getByText(/Event Log/)).toBeTruthy();
-    // fixtures have no concept labels -> fallback banner
-    expect(screen.getAllByText(/no concept labels in this trace/).length).toBeGreaterThan(0);
+    // fixtures carry M2 (experimental) concepts since #14 -> board shows labels
+    expect(screen.getAllByText(/brown/).length).toBeGreaterThan(0);
     // strength axis label present, never "confidence"
     expect(screen.getAllByText(/readout strength/).length).toBeGreaterThan(0);
     expect(document.body.textContent).not.toMatch(/confidence|probability/i);

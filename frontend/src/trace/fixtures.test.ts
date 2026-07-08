@@ -1,7 +1,8 @@
 /**
  * Integration check: the real committed fixture traces parse and drive every
- * selector without throwing, and exercise the fallback path (fixtures have no
- * concepts yet).
+ * selector without throwing. Since M2 merged, fixtures carry (experimental)
+ * concepts, so the timeline runs in concepts mode; the fallback path is
+ * covered by the synthetic-trace unit tests in selectors.test.ts.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -36,13 +37,21 @@ describe("real fixture traces", () => {
         expect(traceDuration(trace)).toBeGreaterThan(0);
       });
 
-      it("builds a fallback timeline with wordlike rows", () => {
+      it("builds a concepts-mode timeline from M2 labels (experimental)", () => {
         const m = buildTimeline(trace);
-        expect(m.mode).toBe("fallback"); // fixtures have empty concepts
+        expect(m.mode).toBe("concepts"); // fixtures carry M2 concepts since #14
         expect(m.rows.length).toBeGreaterThan(0);
         for (const row of m.rows) {
-          expect(row.label).toMatch(/^[a-zA-Z]{2,}$/);
+          expect(row.label).toMatch(/^[a-zA-Z][a-zA-Z -]*$/); // labels may be bigrams
         }
+      });
+
+      it("still builds a fallback timeline when concepts are stripped", () => {
+        const stripped = JSON.parse(JSON.stringify(trace)) as Trace;
+        for (const g of stripped.frame_groups) g.concepts = [];
+        const m = buildTimeline(stripped);
+        expect(m.mode).toBe("fallback");
+        expect(m.rows.length).toBeGreaterThan(0);
       });
 
       it("derives measurement-phrased events only", () => {
