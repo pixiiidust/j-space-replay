@@ -7,7 +7,7 @@
   "model": "qwen2.5-vl-7b-instruct-bnb-nf4",
   "lens": "logit-lens-v1",
   "temporal_resolution_frames": 2,
-  "strength_normalization": "patch-share-top3 (visual) / raw-logit (answer)",
+  "strength_normalization": "concepts: per-layer z-score of patch-share vs baseline corpus; raw visual readouts: patch-share; answer readouts: raw logit",
   "n_layers": 28,
   "fps": 1.0,
   "max_pixels": 196000,
@@ -20,9 +20,9 @@
   "input_tokens": 828,
   "visual_tokens": 800,
   "timings_s": {
-   "sampling": 0.09,
-   "prefill_and_generate": 2.95,
-   "lens_decode": 0.63
+   "sampling": 0.05,
+   "prefill_and_generate": 2.16,
+   "lens_decode": 0.6
   },
   "token_strings": {
    "6": "'",
@@ -4914,7 +4914,10 @@
    "151645": "<|im_end|>",
    "151646": "<|object_ref_start|>",
    "151657": "<tool_call>"
-  }
+  },
+  "caption": "red ball, brown bar, white background, red ball moves left to right",
+  "label_extraction": "labels-v1",
+  "concepts_quality": "experimental (high precision, low recall - see M2 gate)"
  },
  "frame_groups": [
   {
@@ -11624,7 +11627,16 @@
      ]
     }
    ],
-   "concepts": []
+   "concepts": [
+    {
+     "label": "brown",
+     "strength": 0.82,
+     "layer": 26,
+     "source_tokens": [
+      "brown"
+     ]
+    }
+   ]
   },
   {
    "group": 1,
@@ -18333,7 +18345,16 @@
      ]
     }
    ],
-   "concepts": []
+   "concepts": [
+    {
+     "label": "brown",
+     "strength": 1.33,
+     "layer": 26,
+     "source_tokens": [
+      "brown"
+     ]
+    }
+   ]
   },
   {
    "group": 2,
@@ -25042,7 +25063,33 @@
      ]
     }
    ],
-   "concepts": []
+   "concepts": [
+    {
+     "label": "brown",
+     "strength": 1.78,
+     "layer": 27,
+     "source_tokens": [
+      "brown"
+     ]
+    },
+    {
+     "label": "ball",
+     "strength": 1.01,
+     "layer": 27,
+     "source_tokens": [
+      "ball"
+     ]
+    },
+    {
+     "label": "ball brown",
+     "strength": 1.01,
+     "layer": 27,
+     "source_tokens": [
+      "ball",
+      "brown"
+     ]
+    }
+   ]
   },
   {
    "group": 3,
@@ -31751,7 +31798,16 @@
      ]
     }
    ],
-   "concepts": []
+   "concepts": [
+    {
+     "label": "brown",
+     "strength": 3.34,
+     "layer": 27,
+     "source_tokens": [
+      "brown"
+     ]
+    }
+   ]
   }
  ],
  "answer_tokens": [

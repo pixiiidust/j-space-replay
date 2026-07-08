@@ -17,12 +17,16 @@ dependencies = [
     "pillow>=10.0",
     "numpy",
     "huggingface_hub",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "python-multipart>=0.0.9",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.0",
     "ruff",
+    "httpx>=0.27",
 ]
 
 [tool.uv.sources]
