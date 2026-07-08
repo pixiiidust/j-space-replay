@@ -94,6 +94,13 @@ def create_app(
         trace_id = trace_id_for(req.video_id, question)
         if trace_store.has(trace_id):  # cache hit -> instant
             return {"trace_id": trace_id, "cached": True}
+        existing = job_queue.find_active(trace_id)
+        if existing is not None:  # same (video, question) already in flight
+            return JSONResponse(
+                status_code=202,
+                content={"job_id": existing.id,
+                         "queue_position": job_queue.position_of(existing.id) or 0},
+            )
         job = job_queue.submit(video_id=req.video_id, question=question, trace_id=trace_id)
         position = job_queue.position_of(job.id) or 0
         return JSONResponse(status_code=202, content={"job_id": job.id, "queue_position": position})

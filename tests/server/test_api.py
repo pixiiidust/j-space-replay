@@ -26,6 +26,7 @@ def _fake_pipeline(tmp_path, run_trace_fn, sentinel=(object(), object())):
         trace_store=traces,
         run_trace_fn=run_trace_fn,
         load_model=lambda: sentinel,
+        add_concepts=lambda trace, **kw: trace,  # hermetic: real jsr.labels does model work
         grounding_query_factory=lambda m, p, clip: (lambda label, t: ""),
     )
     return videos, traces, pipe
@@ -173,3 +174,25 @@ def test_two_concurrent_trace_requests_queue_correctly(tmp_path):
     finally:
         release.set()
         queue.shutdown()
+
+
+def test_same_video_question_resubmit_returns_existing_job(tmp_path, run_trace_factory):
+    """POST /traces twice for the SAME (video, question) while the first job is
+    still in flight must return the existing job, not double-run the GPU."""
+    gate = threading.Event()
+
+    def slow_run_trace(clip, question, *, on_stage=None, **kw):
+        gate.wait(timeout=5.0)
+        return run_trace_factory()(clip, question, on_stage=on_stage, **kw)
+
+    with _client(tmp_path, slow_run_trace) as client:
+        vid = client.post(
+            "/videos", files={"file": ("clip.mp4", b"dedup-bytes", "video/mp4")}
+        ).json()["video_id"]
+        first = client.post("/traces", json={"video_id": vid, "question": "Q?"})
+        second = client.post("/traces", json={"video_id": vid, "question": "Q?"})
+        assert first.status_code == 202 and second.status_code == 202
+        assert second.json()["job_id"] == first.json()["job_id"]
+        gate.set()
+        final = _poll_job(client, first.json()["job_id"])
+        assert final["status"] == "done"

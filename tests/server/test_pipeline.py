@@ -26,6 +26,12 @@ def _job(video_id="vid0", question="What happens?", trace_id="vid0-abc"):
     return Job(id="j1", video_id=video_id, question=question, trace_id=trace_id)
 
 
+def _noop_labels(trace, **kw):
+    """Hermetic stand-in for jsr.labels.add_concepts (which now exists post-M2
+    and does real caption/model work when given model+processor+clip)."""
+    return trace
+
+
 def test_full_run_progresses_through_all_stages(tmp_path, sentinel_model, run_trace_factory):
     videos, traces = _stores(tmp_path)
     pipe = Pipeline(
@@ -33,6 +39,7 @@ def test_full_run_progresses_through_all_stages(tmp_path, sentinel_model, run_tr
         trace_store=traces,
         run_trace_fn=run_trace_factory(),
         load_model=lambda: sentinel_model,
+        add_concepts=_noop_labels,
         grounding_query_factory=lambda m, p, clip: (lambda label, t: "[0,0,1,1]"),
     )
     job = _job()
@@ -51,9 +58,10 @@ def test_full_run_progresses_through_all_stages(tmp_path, sentinel_model, run_tr
 
 
 def test_labels_stage_skipped_cleanly_when_module_missing(
-    tmp_path, sentinel_model, run_trace_factory
+    tmp_path, sentinel_model, run_trace_factory, monkeypatch
 ):
-    """add_concepts=None + jsr.labels absent -> labels stage still runs, no crash."""
+    """If jsr.labels can't be imported, the labels stage still runs, no crash.
+    (jsr.labels exists since M2 merged, so the absence is simulated.)"""
     videos, traces = _stores(tmp_path)
     pipe = Pipeline(
         video_store=videos,
@@ -61,8 +69,9 @@ def test_labels_stage_skipped_cleanly_when_module_missing(
         run_trace_fn=run_trace_factory(),
         load_model=lambda: sentinel_model,
         grounding_query_factory=lambda m, p, clip: (lambda label, t: ""),
-        add_concepts=None,  # resolves via import; jsr.labels not present in M3
+        add_concepts=None,  # resolve via import ...
     )
+    monkeypatch.setattr(Pipeline, "_resolve_add_concepts", lambda self: None)  # ... which "fails"
     job = _job()
     pipe.run(job)
     assert "labels" in job.stages_done
@@ -72,7 +81,7 @@ def test_labels_stage_skipped_cleanly_when_module_missing(
 def test_labels_then_grounding_populate_the_trace(tmp_path, sentinel_model, run_trace_factory):
     videos, traces = _stores(tmp_path)
 
-    def fake_add_concepts(trace, *, model, processor):
+    def fake_add_concepts(trace, *, model, processor, clip=None):
         trace["frame_groups"][0]["concepts"] = [{"label": "red ball", "strength": 3.0}]
 
     pipe = Pipeline(
@@ -114,6 +123,7 @@ def test_oom_retries_once_at_lower_settings_with_warning(
         run_trace_fn=flaky_run_trace,
         load_model=lambda: sentinel_model,
         oom_errors=(StubOOM,),
+        add_concepts=_noop_labels,
         grounding_query_factory=lambda m, p, clip: (lambda label, t: ""),
         default_max_pixels=1000,
         default_fps=1.0,
@@ -160,6 +170,7 @@ def test_model_loaded_lazily_only_once(tmp_path, sentinel_model, run_trace_facto
         trace_store=traces,
         run_trace_fn=run_trace_factory(),
         load_model=loader,
+        add_concepts=_noop_labels,
         grounding_query_factory=lambda m, p, clip: (lambda label, t: ""),
     )
     assert loads["n"] == 0  # not loaded at construction

@@ -99,6 +99,16 @@ class JobQueue:
     def get(self, job_id: str) -> Job | None:
         return self._jobs.get(job_id)
 
+    def find_active(self, trace_id: str) -> Job | None:
+        """The queued/running job already computing `trace_id`, if any —
+        lets POST /traces dedupe instead of double-running the GPU."""
+        with self._cond:
+            for job_id in self._active:
+                job = self._jobs[job_id]
+                if job.trace_id == trace_id:
+                    return job
+        return None
+
     def position_of(self, job_id: str) -> int | None:
         """0 == front (running or next); None once the job has finished."""
         with self._cond:

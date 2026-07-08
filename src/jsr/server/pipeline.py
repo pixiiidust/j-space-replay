@@ -121,7 +121,8 @@ class Pipeline:
         job.enter("labels")
         add_concepts = self._resolve_add_concepts()
         if add_concepts is not None:
-            add_concepts(trace, model=model, processor=processor)
+            # clip enables jsr.labels' caption pass (extra candidate phrases)
+            add_concepts(trace, model=model, processor=processor, clip=clip)
         job.complete_stage("labels")
 
         # -- grounding stage (model-native boxes for top ~5 concepts) -------
