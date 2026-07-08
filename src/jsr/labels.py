@@ -50,9 +50,11 @@ _BASELINE_PATHS = {
 _BASELINE_PATH = _BASELINE_PATHS["logit-lens-v1"]
 
 # concept extraction band per lens: under the raw logit lens, content on
-# visual tokens lives at layers ~20-27 (M1 risk gate); the J-lens floor is
-# set from its own workspace-range evidence (issue #8 grid)
-LAYER_FLOOR = {"logit-lens-v1": 20, "j-lens-v1": 20}
+# visual tokens lives at layers ~20-27 (M1 risk gate). The J-lens moves the
+# content onset down to ~22 (balance/ball/left readable at 22-23 on ball_drop,
+# issue #8 evidence) but mid layers stay content-free (function words only),
+# so its floor is 22 — not the hoped-for 8.
+LAYER_FLOOR = {"logit-lens-v1": 20, "j-lens-v1": 22}
 
 
 def wordlike(tok: str) -> bool:
