@@ -1,0 +1,45 @@
+{
+  "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+  "stages": {
+    "load_model": {
+      "seconds": 8.4,
+      "peak_vram_allocated_gib": 5.85,
+      "peak_vram_reserved_gib": 5.92,
+      "attn_implementation": "sdpa",
+      "quant": "bnb-nf4"
+    },
+    "text_pass": {
+      "seconds": 0.5,
+      "peak_vram_allocated_gib": 5.96,
+      "peak_vram_reserved_gib": 6.05,
+      "answer": "Ready",
+      "input_tokens": 26
+    },
+    "image_pass": {
+      "seconds": 0.7,
+      "peak_vram_allocated_gib": 6.0,
+      "peak_vram_reserved_gib": 6.07,
+      "answer": "The shape shown is a circle, and it is red.",
+      "input_tokens": 260
+    },
+    "video_pass_5s": {
+      "seconds": 2.8,
+      "peak_vram_allocated_gib": 6.06,
+      "peak_vram_reserved_gib": 6.27,
+      "answer": "The video shows a simple animation of a red ball moving along a horizontal brown bar. The ball starts at the left end of the bar and moves to the right, eventually coming to rest at the right end of the bar. The background is plain white, and there is a gray horizontal line at the bottom of the frame, which might represent the ground or a boundary. The animation is smooth and continuous, indicating a linear motion from left to right.",
+      "input_tokens": 628,
+      "clip": "_m0_ball_drop_5s.mp4",
+      "sampled_frames": 5,
+      "sample_fps": 1.0,
+      "max_pixels": 196000
+    }
+  },
+  "torch": "2.11.0+cu128",
+  "cuda_device": "NVIDIA GeForce RTX 5070 Ti",
+  "compute_capability": "sm_120",
+  "acceptance": {
+    "video_qa_end_to_end": true,
+    "video_pass_peak_vram_gib": 6.27,
+    "video_pass_peak_vram_le_12gib": true
+  }
+}
