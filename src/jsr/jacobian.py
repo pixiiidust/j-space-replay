@@ -56,3 +56,51 @@ def rms_norm_jacobian(
     wx_hat = w * x_hat  # (S, D)
     rank = (m_over_r[:, None] * wx_hat).T @ x_hat / (n_valid * D)  # (D, D)
     return torch.diag(diag) - rank
+
+
+def mlp_branch_jacobian(
+    layer, h_mid: torch.Tensor, mask: torch.Tensor
+) -> torch.Tensor:
+    """Jacobian of the MLP branch d(mlp(post_ln(h)))/dh, position-averaged.
+
+    Exact within the branch: the post-attention RMSNorm is folded PER-POSITION
+    (not as a product of position averages). Per position s:
+
+        J(s) = W_down [diag(silu'(g_s) u_s) W_gate + diag(silu(g_s)) W_up] J_n(s)
+
+    Splitting J_n(s) into its diag and rank-1 parts, the position sum becomes
+    diagonal rescales of W_gate/W_up plus rank-|valid| corrections — a few
+    GEMMs total (the Hadamard trick).
+
+    layer: true-weight fp32 decoder layer; h_mid: (S, D) pre-norm residual
+    entering the branch; mask: (S,) validity. Returns (D, D) fp32.
+    """
+    S, D = h_mid.shape
+    w = layer.post_attention_layernorm.weight.float()
+    eps = layer.post_attention_layernorm.variance_epsilon
+    W_gate = layer.mlp.gate_proj.weight.float()  # (I, D)
+    W_up = layer.mlp.up_proj.weight.float()      # (I, D)
+    W_down = layer.mlp.down_proj.weight.float()  # (D, I)
+
+    xf = h_mid.float()
+    r = torch.sqrt((xf * xf).mean(dim=-1, keepdim=True) + eps)  # (S, 1)
+    x_hat = xf / r
+    xn = x_hat * w  # post_ln output, (S, D)
+    m_over_r = mask.float() / r[:, 0]  # (S,)
+    n_valid = mask.sum()
+
+    g = xn @ W_gate.T  # (S, I)
+    u = xn @ W_up.T    # (S, I)
+    sig = torch.sigmoid(g)
+    dA = sig * (1.0 + g * (1.0 - sig)) * u  # silu'(g) * u
+    dB = g * sig                            # silu(g)
+
+    wx_hat = w * x_hat  # (S, D)
+    inner = torch.zeros(W_gate.shape[0], D, device=h_mid.device)
+    for dcoef, W in ((dA, W_gate), (dB, W_up)):
+        d1 = torch.einsum("si,s->i", dcoef, m_over_r)  # (I,)
+        inner += (W * d1[:, None]) * w[None]
+        p = wx_hat @ W.T  # (S, I)
+        P = dcoef * p * (m_over_r / D)[:, None]  # (S, I)
+        inner -= P.T @ x_hat
+    return (W_down @ inner) / n_valid

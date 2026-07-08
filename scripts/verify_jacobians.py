@@ -26,10 +26,30 @@ import torch
 sys.path.insert(0, str(Path(__file__).parent))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from jsr.jacobian import SKIP_FIRST, rms_norm_jacobian, valid_mask  # noqa: E402
+from jsr.jacobian import SKIP_FIRST, mlp_branch_jacobian, rms_norm_jacobian, valid_mask  # noqa: E402
 from jsr.jweights import CheckpointWeights, build_true_layer, text_config  # noqa: E402
 
 STASH = Path("jlens/stash_ball_drop.pt")
+
+
+def true_layer_fp32(layer_idx: int, weights: CheckpointWeights):
+    return build_true_layer(text_config(), layer_idx, weights, dtype=torch.float32)
+
+
+def rope_from_stash(stash) -> tuple[torch.Tensor, torch.Tensor]:
+    return stash["cos"].to("cuda"), stash["sin"].to("cuda")
+
+
+def h_mid_from_stash(layer, stash, layer_idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    """(h_in, h_mid): residual entering the layer and entering the MLP branch."""
+    h = stash["h_in"][layer_idx].to("cuda", torch.float32)
+    with torch.no_grad():
+        r = layer.self_attn(
+            layer.input_layernorm(h[None]),
+            position_embeddings=rope_from_stash(stash),
+            attention_mask=None,
+        )[0][0]
+    return h, h + r
 
 
 def capture(clip: str, question: str) -> None:
@@ -112,6 +132,26 @@ def verify_rmsnorm(layer_idx: int, n_pos: int = 32) -> None:
     report(f"rmsnorm layer {layer_idx} ({n_pos} real positions)", analytic, ref)
 
 
+def verify_mlp(layer_idx: int, n_pos: int = 8) -> None:
+    """Analytic MLP-branch Jacobian vs per-position jacrev of mlp(post_ln(.))."""
+    stash = load_stash()
+    weights = CheckpointWeights()
+    layer = true_layer_fp32(layer_idx, weights)
+    _, h_mid = h_mid_from_stash(layer, stash, layer_idx)
+    S = h_mid.shape[0]
+    torch.manual_seed(0)
+    vm = valid_mask(S)
+    idx = vm.nonzero()[:, 0][torch.randperm(int(vm.sum()))[:n_pos]]
+    x = h_mid[idx].detach()
+
+    def f(v):
+        return layer.mlp(layer.post_attention_layernorm(v))
+
+    ref = torch.stack([torch.func.jacrev(f)(x[i]) for i in range(len(idx))]).mean(0)
+    analytic = mlp_branch_jacobian(layer, x, torch.ones(len(idx), device="cuda"))
+    report(f"mlp branch layer {layer_idx} ({n_pos} real positions)", analytic, ref)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("component", choices=["capture", "rmsnorm", "mlp", "attn", "layer"])
@@ -125,6 +165,9 @@ def main() -> None:
     elif args.component == "rmsnorm":
         for li in (0, args.layer, 27):
             verify_rmsnorm(li)
+    elif args.component == "mlp":
+        for li in (0, args.layer, 27):
+            verify_mlp(li)
     else:
         raise SystemExit(f"{args.component}: not implemented yet (gate-by-gate)")
 
