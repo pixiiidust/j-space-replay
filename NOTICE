@@ -1,0 +1,38 @@
+J-Space-Replay
+Copyright 2026 J-Space-Replay contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+------------------------------------------------------------------------------
+Third-party components and attributions
+------------------------------------------------------------------------------
+
+This project depends on, downloads, or adapts patterns from the following
+works. Their licenses are their own; this NOTICE credits them as required.
+
+1. Qwen2.5-VL-7B-Instruct
+   - Source:  https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct
+   - Author:  Alibaba Cloud / Qwen team
+   - License: Apache License 2.0
+   - Use:     the vision-language model whose per-layer activations this tool
+              decodes. Weights are downloaded at runtime by
+              scripts/download_model.py; they are NOT redistributed in this repo.
+
+2. WeZZard/jlens-qwen36
+   - Source:  https://github.com/WeZZard/jlens-qwen36
+   - License: Apache License 2.0
+   - Use:     implementation-pattern reference for the analytic J-lens fit (see
+              PLAN.md "J-lens borrow plan"). No code is copied into this repo at
+              v0.1.0; the recipe (analytic per-layer Jacobians, top-down chain,
+              workspace-range layer selection, honesty framing) is adapted, with
+              attribution, as the post-ship J-lens (issue #8) is implemented.
+
+Research anchor (cited, not a code dependency):
+   Anthropic, "Verbalizable Representations Form a Global Workspace in Language
+   Models" (transformer-circuits.pub/2026/workspace). The J-lens / J-space
+   method originates here and was validated on Claude text models only.
+
+Python and JavaScript dependencies (torch, transformers, accelerate,
+bitsandbytes, qwen-vl-utils, PyAV, FastAPI, uvicorn, React, Vite, and others)
+are retrieved from their respective package indexes under their own licenses;
+see each project for details.

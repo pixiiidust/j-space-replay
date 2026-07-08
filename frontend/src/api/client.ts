@@ -4,6 +4,7 @@
  * Base URL is configurable via VITE_API_BASE (default: same origin).
  */
 import type { LibraryItem, Trace } from "../trace/types";
+import { assertSupportedSchema } from "../trace/schema";
 
 const BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
@@ -80,7 +81,11 @@ export async function getJob(jobId: string): Promise<JobState> {
 
 export async function getTrace(traceId: string): Promise<Trace> {
   const res = await fetch(`${BASE}/traces/${encodeURIComponent(traceId)}`);
-  return jsonOrThrow<Trace>(res);
+  const trace = await jsonOrThrow<Trace>(res);
+  // Reject unknown schema versions cleanly (M5) — surfaces as the ReplayScreen
+  // "failed to load trace" error state rather than a broken render.
+  assertSupportedSchema(trace);
+  return trace;
 }
 
 export async function getLibrary(): Promise<LibraryItem[]> {
