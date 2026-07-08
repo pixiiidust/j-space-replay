@@ -9,7 +9,6 @@ import { DEFAULT_QUESTION } from "../constants";
 import { HonestyBanner } from "../components/HonestyBanner";
 import { VideoPanel, type OverlayMode } from "../components/VideoPanel";
 import { Controls } from "../components/Controls";
-import { FrameRegions } from "../components/FrameRegions";
 import { TimelineHeatmap } from "../components/TimelineHeatmap";
 import { JSpaceSlice } from "../components/JSpaceSlice";
 import { ConceptBoard } from "../components/ConceptBoard";
@@ -175,7 +174,18 @@ function ReplayBody(props: {
           <div className="panel">
             <div className="panel-h">
               <span>Video Player</span>
-              <span className="muted">{videoAvailable ? "clip" : "no clip"}</span>
+              <span className="controls" style={{ gap: 4 }}>
+                {(["clean", "boxes", "patch"] as OverlayMode[]).map((m) => (
+                  <button
+                    key={m}
+                    className={"btn" + (overlay === m ? " active" : "")}
+                    style={overlay === m ? { borderColor: "#113f8c", color: "#113f8c" } : undefined}
+                    onClick={() => setOverlay(m)}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </span>
             </div>
             <VideoPanel
               videoRef={videoRef}
@@ -188,16 +198,21 @@ function ReplayBody(props: {
             />
           </div>
           <Controls clock={clock} trace={trace} model={model} />
-          <FrameRegions
-            mode={overlay}
-            onModeChange={setOverlay}
-            patch={patch}
-            grounding={groundingNow}
-          />
         </div>
 
-        {/* CENTER */}
+        {/* CENTER — the workspace slice is the replay's hero surface: it lights
+            up on the playback clock (frame groups past the playhead, answer
+            tokens revealed proportionally). */}
         <div className="col">
+          {(tab === "dashboard" || tab === "replay" || tab === "lens") && (
+            <JSpaceSlice
+              trace={trace}
+              currentGroup={clock.groupIndex}
+              time={clock.time}
+              duration={clock.duration}
+              onSeekGroup={(idx) => clock.seekGroup(idx)}
+            />
+          )}
           {(tab === "dashboard" || tab === "replay") && (
             <TimelineHeatmap
               model={model}
@@ -208,9 +223,6 @@ function ReplayBody(props: {
                 clock.seekGroup(groupIdx);
               }}
             />
-          )}
-          {(tab === "dashboard" || tab === "lens") && (
-            <JSpaceSlice trace={trace} currentGroup={clock.groupIndex} />
           )}
           {tab === "events" && (
             <EventLog

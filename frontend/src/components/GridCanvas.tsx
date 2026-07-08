@@ -11,6 +11,8 @@ interface Props {
   cellW?: number;
   cellH?: number;
   highlightRow?: number;
+  /** Playback reveal: rows after this index render faint until the clock reaches them. */
+  revealUpToRow?: number | null;
 }
 
 /**
@@ -28,6 +30,7 @@ export function GridCanvas({
   cellW = 24,
   cellH = 16,
   highlightRow,
+  revealUpToRow,
 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const headerH = 16;
@@ -59,16 +62,19 @@ export function GridCanvas({
 
     for (let r = 0; r < nRows; r++) {
       const y = headerH + r * cellH;
+      const unrevealed = revealUpToRow != null && r > revealUpToRow;
       ctx.textAlign = "left";
-      ctx.fillStyle = highlightRow === r ? "#113f8c" : "#1d1d1b";
+      ctx.fillStyle = highlightRow === r ? "#113f8c" : unrevealed ? "#c9c9c2" : "#1d1d1b";
       const lbl = rowLabels[r].length > 13 ? rowLabels[r].slice(0, 12) + "…" : rowLabels[r];
       ctx.fillText(lbl, 4, y + cellH / 2);
+      ctx.globalAlpha = unrevealed ? 0.12 : 1;
       for (let c = 0; c < nCols; c++) {
         const v = values[r][c];
         const x = labelW + c * cellW;
         ctx.fillStyle = v == null ? "#f7f7f5" : heatColor(Math.abs(v) / maxAbs);
         ctx.fillRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
       }
+      ctx.globalAlpha = 1;
     }
 
     if (highlightRow != null && highlightRow >= 0 && highlightRow < nRows) {
@@ -86,7 +92,7 @@ export function GridCanvas({
         cellH - 2,
       );
     }
-  }, [rowLabels, colLabels, values, selected, highlightRow, width, height, cellW, cellH, labelW, maxAbs, nRows, nCols]);
+  }, [rowLabels, colLabels, values, selected, highlightRow, revealUpToRow, width, height, cellW, cellH, labelW, maxAbs, nRows, nCols]);
 
   return (
     <div className="canvas-scroll">
