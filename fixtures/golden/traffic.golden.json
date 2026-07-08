@@ -1,0 +1,45 @@
+{
+  "video_id": "traffic",
+  "question": "Describe what happens in this video.",
+  "n_layers": 28,
+  "sampled_frames": 12,
+  "video_grid_thw": [
+    6,
+    20,
+    40
+  ],
+  "visual_tokens": 1200,
+  "input_tokens": 1228,
+  "n_groups": 6,
+  "patch_grid": [
+    10,
+    20
+  ],
+  "tokens_per_group": 200,
+  "group_times": [
+    [
+      0.0,
+      2.0
+    ],
+    [
+      2.0,
+      4.0
+    ],
+    [
+      4.0,
+      6.0
+    ],
+    [
+      6.0,
+      8.0
+    ],
+    [
+      8.0,
+      10.0
+    ],
+    [
+      10.0,
+      12.0
+    ]
+  ]
+}
