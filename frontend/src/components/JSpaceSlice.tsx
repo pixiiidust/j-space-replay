@@ -18,17 +18,30 @@ type Sel =
 interface Props {
   trace: Trace;
   currentGroup: number;
+  /** Playback clock (seconds); drives the replay reveal of both grids. */
+  time: number;
+  duration: number;
+  onSeekGroup?(idx: number): void;
 }
 
 /**
  * J-space slice viewer: frame-group x layer and answer-token x layer grids.
  * Any cell drills down to its top-10 raw lens tokens. This is the honest
  * "drop to raw readouts" path SPEC requires behind every derived view.
+ *
+ * Both grids replay on the video clock: frame groups light up as the playhead
+ * passes them, and the answer-token grid reveals token rows proportionally —
+ * the answer visibly "forming". The axis note states plainly that generation
+ * happened after the full clip; the sync is a replay, not simultaneity.
  */
-export function JSpaceSlice({ trace, currentGroup }: Props) {
+export function JSpaceSlice({ trace, currentGroup, time, duration, onSeekGroup }: Props) {
   const gl = useMemo(() => groupLayerGrid(trace), [trace]);
   const al = useMemo(() => answerLayerGrid(trace), [trace]);
   const [sel, setSel] = useState<Sel>({ view: "group", r: 0, c: gl.layers.length - 1 });
+
+  const nAnswer = trace.answer_tokens.length;
+  const fraction = duration > 0 ? Math.min(1, time / duration) : 1;
+  const answerRow = nAnswer > 0 ? Math.min(nAnswer - 1, Math.floor(fraction * nAnswer)) : 0;
 
   const groupRowLabels = trace.frame_groups.map((g) => `g${g.group} ${g.time_start}s`);
   const answerRowLabels = trace.answer_tokens.map((t, i) => `${i}:${t.token.replace(/▁/g, "·")}`);
@@ -68,14 +81,20 @@ export function JSpaceSlice({ trace, currentGroup }: Props) {
             values={gl.values}
             selected={sel?.view === "group" ? { r: sel.r, c: sel.c } : null}
             highlightRow={currentGroup}
-            onPick={(r, c) => setSel({ view: "group", r, c })}
+            revealUpToRow={currentGroup}
+            onPick={(r, c) => {
+              setSel({ view: "group", r, c });
+              onSeekGroup?.(r);
+            }}
           />
         </div>
 
-        {trace.answer_tokens.length > 0 && (
+        {nAnswer > 0 && (
           <div>
             <div className="axis-note" style={{ marginBottom: 3 }}>
-              answer-token × layer ({STRENGTH_AXIS_LABEL}, raw logit)
+              answer-token × layer ({STRENGTH_AXIS_LABEL}, raw logit) — generation
+              replayed on the clip clock; tokens were generated after the model saw
+              the whole clip
             </div>
             <GridCanvas
               rowLabels={answerRowLabels}
@@ -83,6 +102,8 @@ export function JSpaceSlice({ trace, currentGroup }: Props) {
               values={al.values}
               cellH={13}
               selected={sel?.view === "answer" ? { r: sel.r, c: sel.c } : null}
+              highlightRow={answerRow}
+              revealUpToRow={answerRow}
               onPick={(r, c) => setSel({ view: "answer", r, c })}
             />
           </div>
