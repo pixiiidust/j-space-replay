@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
-import { isCached, startTrace, uploadVideo } from "../api/client";
+import { useEffect, useRef, useState } from "react";
+import { getLenses, isCached, startTrace, uploadVideo } from "../api/client";
 import { DEFAULT_QUESTION } from "../constants";
 import { HonestyBanner } from "../components/HonestyBanner";
+import { LensSelect } from "../components/QueryConsole";
 
 interface Props {
   onJobStarted(jobId: string, question: string, videoId: string): void;
@@ -16,7 +17,23 @@ export function UploadScreen({ onJobStarted, onCached, onOpenLibrary }: Props) {
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lenses, setLenses] = useState<string[]>([]);
+  const [lens, setLens] = useState("logit-lens-v1");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getLenses().then((info) => {
+      if (!alive) return;
+      setLenses(info.lenses);
+      // prefer the J-lens when this install has one fitted (issue #8: it is
+      // the paper's method; the trace is badged either way)
+      setLens(info.lenses.includes("j-lens-v1") ? "j-lens-v1" : info.default);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const submit = async () => {
     if (!file || busy) return;
@@ -24,7 +41,7 @@ export function UploadScreen({ onJobStarted, onCached, onOpenLibrary }: Props) {
     setError(null);
     try {
       const up = await uploadVideo(file);
-      const res = await startTrace(up.video_id, question.trim() || DEFAULT_QUESTION);
+      const res = await startTrace(up.video_id, question.trim() || DEFAULT_QUESTION, lens);
       if (isCached(res)) onCached(res.trace_id);
       else onJobStarted(res.job_id, question.trim() || DEFAULT_QUESTION, up.video_id);
     } catch (e) {
@@ -88,6 +105,18 @@ export function UploadScreen({ onJobStarted, onCached, onOpenLibrary }: Props) {
             aria-label="question"
           />
         </div>
+
+        {lenses.length > 1 && (
+          <div className="field">
+            <label>3 · decode lens</label>
+            <LensSelect value={lens} onChange={setLens} lenses={lenses} />
+            <div className="axis-note">
+              J-lens: analytic Jacobian transport (issue #8) — richer mid/late-layer
+              readouts; logit lens: the raw identity readout. The replay is badged
+              with whichever produced it.
+            </div>
+          </div>
+        )}
 
         {error && <div className="err">{error}</div>}
 

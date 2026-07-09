@@ -77,6 +77,7 @@ class Pipeline:
         self.default_fps = default_fps
         self.default_max_pixels = default_max_pixels
         self._model = None  # lazily loaded (model, processor) tuple, cached
+        self._jlens = None  # lazily loaded JLens, cached (686 MB fp16 on GPU)
 
     # -- VRAM pre-flight (soft: refuses only when measurably below budget) --
     def _preflight(self) -> None:
@@ -101,6 +102,17 @@ class Pipeline:
 
     def warmup(self) -> None:
         self._get_model()
+
+    def _get_jlens(self):
+        """The fitted J-lens, loaded once. FileNotFoundError (with the
+        regenerate-command guidance from JLens.load) surfaces as the job's
+        error message — the UI only offers the lens when /lenses says it
+        exists, so hitting this means the file vanished mid-session."""
+        if self._jlens is None:
+            from jsr.lens import JLens
+
+            self._jlens = JLens.load()
+        return self._jlens
 
     def _run_trace(self):
         if self._run_trace_fn is not None:
@@ -149,6 +161,7 @@ class Pipeline:
             "trace_id": job.trace_id,
             "video_id": job.video_id,
             "question": job.question,
+            "lens": trace.get("meta", {}).get("lens", "logit-lens-v1"),
             "answer": trace.get("answer", ""),
             "created_at": _now_iso(),
             "duration_s": record.duration_s,
@@ -159,6 +172,9 @@ class Pipeline:
 
     def _trace_with_failure_paths(self, job: Job, clip: Path, model, processor) -> dict:
         run_trace = self._run_trace()
+        lens_kw = {}
+        if getattr(job, "lens", "logit-lens-v1") == "j-lens-v1":
+            lens_kw["jlens"] = self._get_jlens()
 
         def on_stage(name: str) -> None:
             entry = RUN_TRACE_ENTRY.get(name)
@@ -174,6 +190,7 @@ class Pipeline:
                 fps=self.default_fps,
                 max_pixels=self.default_max_pixels,
                 on_stage=on_stage,
+                **lens_kw,
             )
         except self._oom_errors:
             # OOM path: retry ONCE at half the pixels and lower FPS, with a warning.
@@ -190,6 +207,7 @@ class Pipeline:
                 fps=RETRY_FPS,
                 max_pixels=self.default_max_pixels // 2,
                 on_stage=on_stage,
+                **lens_kw,
             )
             # A second OOM here is not retried again; it propagates to the queue
             # and surfaces as a plain job error.

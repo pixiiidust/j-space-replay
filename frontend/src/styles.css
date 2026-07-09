@@ -616,3 +616,31 @@ table.drill td.num {
   padding: 8px 10px;
   font-size: 12px;
 }
+
+/* lens identity: every trace is badged with the lens that decoded it (#8) */
+.lens-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid #b9b9b0;
+  border-radius: 9px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: #5b5b54;
+  background: #f4f4f0;
+  vertical-align: middle;
+  cursor: help;
+}
+.lens-chip.jlens {
+  border-color: #113f8c;
+  color: #113f8c;
+  background: #eef2fb;
+}
+
+.lens-select {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid #b9b9b0;
+  background: #ffffff;
+  color: #1d1d1b;
+}

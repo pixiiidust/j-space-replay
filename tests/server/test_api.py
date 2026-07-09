@@ -196,3 +196,61 @@ def test_same_video_question_resubmit_returns_existing_job(tmp_path, run_trace_f
         gate.set()
         final = _poll_job(client, first.json()["job_id"])
         assert final["status"] == "done"
+
+
+def test_lens_field_routes_to_jlens_and_gets_distinct_trace_id(tmp_path, run_trace_factory):
+    """lens=j-lens-v1 must reach run_trace as a jlens object, produce a
+    distinct -jl trace_id (never clobbering the logit trace of the same
+    question), and stamp the lens on the library card."""
+    seen_jlens: list = []
+
+    def recording_run_trace(clip, question, *, on_stage=None, **kw):
+        seen_jlens.append(kw.get("jlens"))
+        out = run_trace_factory()(clip, question, on_stage=on_stage, **kw)
+        if kw.get("jlens") is not None:
+            out["meta"]["lens"] = "j-lens-v1"
+        return out
+
+    videos, traces, pipe = _fake_pipeline(tmp_path, recording_run_trace)
+    pipe._jlens = object()  # hermetic: no fitted lens file in the test env
+    app = create_app(video_store=videos, trace_store=traces, pipeline=pipe,
+                     probe_fn=lambda data, filename: 12.5)
+    with TestClient(app) as client:
+        vid = client.post(
+            "/videos", files={"file": ("clip.mp4", b"lens-bytes", "video/mp4")}
+        ).json()["video_id"]
+
+        r_logit = client.post("/traces", json={"video_id": vid, "question": "Q?"})
+        final_logit = _poll_job(client, r_logit.json()["job_id"])
+        r_jl = client.post("/traces", json={"video_id": vid, "question": "Q?", "lens": "j-lens-v1"})
+        assert r_jl.status_code == 202, "j-lens request must be a NEW job, not the logit cache"
+        final_jl = _poll_job(client, r_jl.json()["job_id"])
+
+        assert final_logit["status"] == final_jl["status"] == "done"
+        assert final_jl["trace_id"] == final_logit["trace_id"] + "-jl"
+        assert seen_jlens[0] is None and seen_jlens[1] is not None
+
+        lib = {it["trace_id"]: it for it in client.get("/library").json()["items"]}
+        assert lib[final_jl["trace_id"]]["lens"] == "j-lens-v1"
+        assert lib[final_logit["trace_id"]]["lens"] == "logit-lens-v1"
+
+        # each lens hits its own cache
+        again = client.post("/traces", json={"video_id": vid, "question": "Q?", "lens": "j-lens-v1"})
+        assert again.status_code == 200 and again.json()["cached"] is True
+
+
+def test_unknown_lens_rejected_422(tmp_path, run_trace_factory):
+    with _client(tmp_path, run_trace_factory()) as client:
+        vid = client.post(
+            "/videos", files={"file": ("c.mp4", b"zz", "video/mp4")}
+        ).json()["video_id"]
+        r = client.post("/traces", json={"video_id": vid, "lens": "tuned-lens-v9"})
+        assert r.status_code == 422
+        assert "tuned-lens-v9" in r.json()["detail"]
+
+
+def test_lenses_endpoint_lists_default(tmp_path, run_trace_factory):
+    with _client(tmp_path, run_trace_factory()) as client:
+        body = client.get("/lenses").json()
+        assert body["default"] == "logit-lens-v1"
+        assert "logit-lens-v1" in body["lenses"]  # j-lens presence depends on a fitted file

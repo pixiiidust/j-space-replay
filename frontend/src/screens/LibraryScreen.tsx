@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getLibrary } from "../api/client";
 import type { LibraryItem } from "../trace/types";
 import { HonestyBanner } from "../components/HonestyBanner";
+import { LensChip } from "../components/JSpaceSlice";
 
 interface Props {
   onOpen(traceId: string): void;
@@ -41,7 +42,7 @@ export function LibraryScreen({ onOpen, onUpload }: Props) {
               <div className="lib-a">{it.answer}</div>
             </div>
             <div className="concept-meta">
-              {it.duration_s}s · {it.trace_id}
+              <LensChip lens={it.lens ?? "logit-lens-v1"} /> {it.duration_s}s · {it.trace_id}
             </div>
           </div>
         ))}
