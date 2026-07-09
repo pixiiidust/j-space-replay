@@ -13,9 +13,24 @@ which does the same for text. Not a research-grade reproduction of either.
 
 https://github.com/user-attachments/assets/bf9a76e6-0ad8-4dea-a1b1-a4380a8298f5
 
-*Click the image for a 37 s video demo: "did human fall" on a panda clip. The
-model answers "no indication of a human falling" while cells still reading
-`human` and `fall` pulse red, and `person ×17` sits in the unspoken strip.*
+*37 s video demo: "did human fall" on a panda clip. The model answers "no
+indication of a human falling" while cells still reading `human` and `fall`
+pulse red, and `person ×17` sits in the unspoken strip.*
+
+## Live demo
+
+Browse pre-baked replays in your browser, no install:
+**https://pixiiidust.github.io/j-space-replay/**
+
+The hosted version is a read-only gallery. It serves static trace files, so
+everything you see there was computed ahead of time. What it cannot do:
+
+- **Upload your own videos.** There is no server behind it.
+- **Ask new questions.** Re-ask and the lens picker are hidden.
+
+To trace your own clips and questions, install the app locally (Quick start
+below). It needs an NVIDIA GPU; the model runs on your desktop and nothing
+leaves it.
 
 ## Demo examples
 
