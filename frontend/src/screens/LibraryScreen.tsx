@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getLibrary } from "../api/client";
+import { getLibrary, isStaticDemo } from "../api/client";
 import type { LibraryItem } from "../trace/types";
 import { HonestyBanner } from "../components/HonestyBanner";
 import { LensChip } from "../components/JSpaceSlice";
@@ -24,7 +24,7 @@ export function LibraryScreen({ onOpen, onUpload }: Props) {
     <div className="app">
       <div className="topbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1>Video J-Space Replay</h1>
-        <button className="btn primary" onClick={onUpload}>+ new</button>
+        {!isStaticDemo && <button className="btn primary" onClick={onUpload}>+ new</button>}
       </div>
       <div style={{ padding: "10px 12px 0" }}>
         <HonestyBanner />

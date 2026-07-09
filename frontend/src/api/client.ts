@@ -8,6 +8,13 @@ import { assertSupportedSchema } from "../trace/schema";
 
 const BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
+/**
+ * Static demo build (GitHub Pages): the same UI over pre-exported JSON files
+ * (scripts/export_pages_demo.py). GETs use identical paths; there is no
+ * backend, so tracing/uploading is hidden by the screens.
+ */
+export const isStaticDemo = import.meta.env.VITE_STATIC_API === "1";
+
 export interface UploadResult {
   video_id: string;
   filename: string;
@@ -112,6 +119,8 @@ export async function getLibrary(): Promise<LibraryItem[]> {
 }
 
 export function videoFileUrl(videoId: string): string {
+  // static export commits plain .mp4 files so browsers get a video MIME type
+  if (isStaticDemo) return `${BASE}/videos/${encodeURIComponent(videoId)}.mp4`;
   return `${BASE}/videos/${encodeURIComponent(videoId)}/file`;
 }
 
