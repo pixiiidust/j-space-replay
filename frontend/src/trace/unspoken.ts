@@ -55,6 +55,14 @@ export function unspokenReadouts(
     ...contentWords(trace.question),
     ...contentWords(trace.answer),
   ]);
+  // canonWord is naive ("forces" -> "forc" misses "force"), and lens tokens
+  // are subword pieces ("grav" for "gravity") — treat a candidate as spoken
+  // when any spoken word starts with it too
+  const isSpoken = (lower: string, c: string) =>
+    spoken.has(c) ||
+    spoken.has(lower) ||
+    spoken.has(lower.replace(/s$/, "")) ||
+    (lower.length >= 4 && [...spoken].some((w) => w.startsWith(lower)));
   const counts = new Map<string, { cells: number; surface: string }>();
 
   const bump = (tokens: string[]) => {
@@ -65,7 +73,8 @@ export function unspokenReadouts(
       if (surface.length < 3) continue;
       const lower = surface.toLowerCase();
       const c = canonWord(lower);
-      if (STOP.has(lower) || FILLER.has(lower) || FILLER.has(c) || spoken.has(c) || seen.has(c)) continue;
+      if (STOP.has(lower) || FILLER.has(lower) || FILLER.has(c) || seen.has(c)) continue;
+      if (isSpoken(lower, c)) continue;
       seen.add(c);
       const cur = counts.get(c);
       if (cur) cur.cells += 1;

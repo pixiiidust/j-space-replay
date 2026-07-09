@@ -37,6 +37,21 @@ describe("unspoken readouts (suppression signal)", () => {
     expect(words).not.toContain("all"); // filler
   });
 
+  it("suffix variants and subword pieces of spoken words are excluded", () => {
+    const t = makeTrace([], {
+      question: "Why does the ball fall?",
+      answer: "The ball falls because of a fundamental force called gravity.",
+      answer_tokens: [0, 1, 2].map((i) => ({
+        token: ` t${i}`,
+        readouts_by_layer: { "24": readout([" forces", " grav", " blackmail"]) },
+      })) as AnswerToken[],
+    });
+    const words = unspokenReadouts(t, { minCells: 1 }).map((x) => x.word);
+    expect(words).not.toContain("forces"); // "force" is in the answer
+    expect(words).not.toContain("grav"); // subword of "gravity"
+    expect(words).toContain("blackmail");
+  });
+
   it("minCells drops rare readouts", () => {
     const u = unspokenReadouts(trace, { minCells: 7 });
     expect(u.length).toBe(0);
