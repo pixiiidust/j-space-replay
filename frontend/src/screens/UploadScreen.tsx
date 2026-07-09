@@ -97,12 +97,12 @@ export function UploadScreen({ onJobStarted, onCached, onOpenLibrary }: Props) {
         </div>
 
         <div className="field">
-          <label>2 · question</label>
+          <label>2 · prompt</label>
           <input
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            aria-label="question"
+            aria-label="prompt"
           />
         </div>
 

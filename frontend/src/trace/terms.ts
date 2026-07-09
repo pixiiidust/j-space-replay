@@ -18,7 +18,7 @@
  */
 import type { AnswerToken } from "./types";
 
-const STOP = new Set([
+export const STOP = new Set([
   "the", "a", "an", "of", "in", "on", "at", "to", "and", "or", "is", "are",
   "was", "were", "be", "been", "it", "its", "this", "that", "there", "with",
   "as", "by", "for", "from", "into", "over", "under", "then", "than", "but",

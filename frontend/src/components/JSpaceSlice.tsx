@@ -3,6 +3,7 @@ import type { Trace } from "../trace/types";
 import { answerLayerGrid, answerLayerWords, answerTokensAt, type TokenStrength } from "../trace/jspace";
 import { LENS_LABELS, STRENGTH_AXIS_LABEL } from "../constants";
 import { answerGridPulse, deniedTerms } from "../trace/terms";
+import { unspokenReadouts } from "../trace/unspoken";
 import { GridCanvas } from "./GridCanvas";
 
 export function LensChip({ lens, caveats }: { lens: string; caveats?: string[] }) {
@@ -86,6 +87,8 @@ export function AnswerWorkspace({
   );
   const rowLabels = trace.answer_tokens.map((t, i) => `${i}:${t.token.replace(/▁/g, "·")}`);
   const terms = useMemo(() => deniedTerms(trace.answer), [trace]);
+  const unspoken = useMemo(() => unspokenReadouts(trace), [trace]);
+  const [markWord, setMarkWord] = useState<string | null>(null);
   const pulse = useMemo(
     () => answerGridPulse(trace.answer_tokens, al.layers, terms),
     [trace, al.layers, terms],
@@ -126,6 +129,22 @@ export function AnswerWorkspace({
             same word; generation replayed on the clip clock
             <PulseLegend terms={terms} />
           </div>
+          {unspoken.length > 0 && (
+            <div className="axis-note unspoken-strip">
+              unspoken readouts (read internally, never said in the answer — click to
+              highlight):{" "}
+              {unspoken.map((u) => (
+                <button
+                  key={u.word}
+                  className={"unspoken" + (markWord === u.word ? " on" : "")}
+                  title={`read in ${u.cells} cells; appears in neither the prompt nor the answer`}
+                  onClick={() => setMarkWord(markWord === u.word ? null : u.word)}
+                >
+                  {u.word}&thinsp;×{u.cells}
+                </button>
+              ))}
+            </div>
+          )}
           <GridCanvas
             rowLabels={rowLabels}
             colLabels={al.layers.map(String)}
@@ -133,6 +152,7 @@ export function AnswerWorkspace({
             cellW={84}
             cellH={20}
             cellText={words}
+            matchWord={markWord}
             selected={target}
             highlightRow={answerRow}
             revealUpToRow={answerRow}
