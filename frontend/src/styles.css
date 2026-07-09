@@ -256,9 +256,9 @@ select:focus {
 
 .dash {
   display: grid;
-  /* narrow sidebar: concepts + events are compact lists — the workspace slice
-     gets the width */
-  grid-template-columns: 300px minmax(0, 1fr) 250px;
+  /* two columns since the concepts/events sidebar was dropped (user QA):
+     the workspace word grid gets all remaining width */
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 10px;
   padding: 10px 12px 24px;
   align-items: start;
@@ -268,17 +268,6 @@ select:focus {
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-}
-@media (max-width: 1400px) {
-  .dash {
-    grid-template-columns: 300px minmax(0, 1fr);
-  }
-  .dash .col:last-child {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    align-items: start;
-  }
 }
 @media (max-width: 900px) {
   .dash {

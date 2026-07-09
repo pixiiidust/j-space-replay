@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Trace } from "../trace/types";
 import { getTrace, videoFileUrl } from "../api/client";
 import { buildTimeline, traceDuration } from "../trace/selectors";
-import { deriveEvents } from "../trace/events";
 import { bestLayerForWord, patchHeatmapForWord } from "../trace/jspace";
 import { useClock } from "../hooks/useClock";
 import { HonestyBanner } from "../components/HonestyBanner";
@@ -10,8 +9,6 @@ import { VideoPanel, type OverlayMode } from "../components/VideoPanel";
 import { Controls } from "../components/Controls";
 import { QueryConsole } from "../components/QueryConsole";
 import { AnswerWorkspace, LensChip } from "../components/JSpaceSlice";
-import { ConceptBoard } from "../components/ConceptBoard";
-import { EventLog } from "../components/EventLog";
 
 interface Props {
   traceId: string;
@@ -23,9 +20,6 @@ export function ReplayScreen({ traceId, onReAsk, onOpenLibrary }: Props) {
   const [trace, setTrace] = useState<Trace | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [videoAvailable, setVideoAvailable] = useState(true);
-  const [selectedRow, setSelectedRow] = useState<number>(0);
-  const [pinned, setPinned] = useState<Set<string>>(new Set());
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [overlay, setOverlay] = useState<OverlayMode>("clean");
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -34,7 +28,6 @@ export function ReplayScreen({ traceId, onReAsk, onOpenLibrary }: Props) {
     setTrace(null);
     setError(null);
     setVideoAvailable(true);
-    setSelectedRow(0);
     getTrace(traceId)
       .then((t) => {
         if (alive) setTrace(t);
@@ -53,12 +46,6 @@ export function ReplayScreen({ traceId, onReAsk, onOpenLibrary }: Props) {
     videoRef={videoRef}
     videoAvailable={videoAvailable}
     setVideoAvailable={setVideoAvailable}
-    selectedRow={selectedRow}
-    setSelectedRow={setSelectedRow}
-    pinned={pinned}
-    setPinned={setPinned}
-    hidden={hidden}
-    setHidden={setHidden}
     overlay={overlay}
     setOverlay={setOverlay}
     onReAsk={onReAsk}
@@ -72,27 +59,22 @@ function ReplayBody(props: {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   videoAvailable: boolean;
   setVideoAvailable(b: boolean): void;
-  selectedRow: number;
-  setSelectedRow(n: number): void;
-  pinned: Set<string>;
-  setPinned(s: Set<string>): void;
-  hidden: Set<string>;
-  setHidden(s: Set<string>): void;
   overlay: OverlayMode;
   setOverlay(m: OverlayMode): void;
   onReAsk(videoId: string, question: string, lens?: string): void;
   onOpenLibrary(): void;
 }) {
   const {
-    trace, videoRef, videoAvailable, setVideoAvailable, selectedRow, setSelectedRow,
-    pinned, setPinned, hidden, setHidden, overlay, setOverlay, onReAsk, onOpenLibrary,
+    trace, videoRef, videoAvailable, setVideoAvailable, overlay, setOverlay,
+    onReAsk, onOpenLibrary,
   } = props;
 
   const model = useMemo(() => buildTimeline(trace), [trace]);
-  const events = useMemo(() => deriveEvents(model), [model]);
   const clock = useClock(trace, videoRef, videoAvailable);
 
-  const selRow = model.rows[selectedRow] ?? model.rows[0] ?? null;
+  // concepts/events sidebar removed (user QA): the PATCH overlay follows the
+  // top concept; raw readouts stay one click away in the workspace grid
+  const selRow = model.rows[0] ?? null;
   const curGroup = trace.frame_groups[clock.groupIndex];
 
   // which answer token the replay is currently "forming"
@@ -115,13 +97,6 @@ function ReplayBody(props: {
     (b) => curGroup && b.time >= curGroup.time_start && b.time < curGroup.time_end,
   );
 
-  const toggleSet = (s: Set<string>, setS: (x: Set<string>) => void, label: string) => {
-    const next = new Set(s);
-    if (next.has(label)) next.delete(label);
-    else next.add(label);
-    setS(next);
-  };
-
   const dur = traceDuration(trace);
   const meta = trace.meta;
 
@@ -136,8 +111,7 @@ function ReplayBody(props: {
         </div>
         <div className="metaline">
           clip <b>{dur}s</b> | frame groups <b>{trace.frame_groups.length}</b> | layers{" "}
-          <b>{meta.n_layers}</b> | concepts <b>{model.mode === "concepts" ? model.rows.length : 0}</b>{" "}
-          | model <b>{meta.model}</b> | <LensChip lens={meta.lens} caveats={meta.lens_caveats} />
+          <b>{meta.n_layers}</b> | model <b>{meta.model}</b> | <LensChip lens={meta.lens} caveats={meta.lens_caveats} />
         </div>
       </div>
 
@@ -193,30 +167,6 @@ function ReplayBody(props: {
           <AnswerWorkspace trace={trace} answerRow={answerRow} playing={clock.playing} />
         </div>
 
-        {/* RIGHT — sidebar: derived views */}
-        <div className="col">
-          <ConceptBoard
-            model={model}
-            selectedRow={selectedRow}
-            pinned={pinned}
-            hidden={hidden}
-            onSelect={setSelectedRow}
-            onJumpPeak={(idx) => {
-              setSelectedRow(idx);
-              clock.seek(model.rows[idx].peakTime);
-            }}
-            onTogglePin={(l) => toggleSet(pinned, setPinned, l)}
-            onToggleHide={(l) => toggleSet(hidden, setHidden, l)}
-          />
-          <EventLog
-            events={events}
-            onPick={(ev) => {
-              clock.seek(ev.time);
-              const idx = model.rows.findIndex((r) => r.label === ev.label);
-              if (idx >= 0) setSelectedRow(idx);
-            }}
-          />
-        </div>
       </div>
     </div>
   );
