@@ -48,6 +48,8 @@ export interface Grounding {
 export interface TraceMeta {
   model: string;
   lens: string;
+  /** honesty caveats carried by fitted lenses (j-lens-v1) */
+  lens_caveats?: string[];
   temporal_resolution_frames: number;
   strength_normalization: string;
   n_layers: number;
@@ -74,4 +76,6 @@ export interface LibraryItem {
   answer: string;
   created_at: string;
   duration_s: number;
+  /** absent on pre-lens-era cards -> logit lens */
+  lens?: string;
 }

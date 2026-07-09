@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Trace } from "../trace/types";
-import { DEFAULT_QUESTION } from "../constants";
+import { getLenses } from "../api/client";
+import { DEFAULT_QUESTION, LENS_LABELS } from "../constants";
 import { contradictedTerms } from "../trace/terms";
 
 interface Props {
@@ -8,10 +9,38 @@ interface Props {
   /** Index of the answer token currently being replayed (drives the underline). */
   answerRow: number;
   onSeekToken(index: number): void;
-  onReAsk(videoId: string, question: string): void;
+  onReAsk(videoId: string, question: string, lens?: string): void;
 }
 
 const isSpecial = (tok: string) => /^\s*<\|[^>]*\|>\s*$/.test(tok);
+
+/** Lens picker, shown only when this install has more than one lens fitted. */
+export function LensSelect({
+  value,
+  onChange,
+  lenses,
+}: {
+  value: string;
+  onChange(lens: string): void;
+  lenses: string[];
+}) {
+  if (lenses.length < 2) return null;
+  return (
+    <select
+      className="lens-select"
+      aria-label="decode lens"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      title="which readout method decodes the residuals — every trace is badged with the lens that made it"
+    >
+      {lenses.map((l) => (
+        <option key={l} value={l}>
+          {LENS_LABELS[l] ?? l}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 /**
  * The query console: question in, answer out — the pipeline's contract, above
@@ -21,11 +50,26 @@ const isSpecial = (tok: string) => /^\s*<\|[^>]*\|>\s*$/.test(tok);
  */
 export function QueryConsole({ trace, answerRow, onSeekToken, onReAsk }: Props) {
   const [q, setQ] = useState(trace.question);
+  const [lenses, setLenses] = useState<string[]>([]);
+  const [lens, setLens] = useState(trace.meta.lens);
   useEffect(() => setQ(trace.question), [trace.question]);
+  useEffect(() => {
+    let alive = true;
+    getLenses().then((info) => {
+      if (!alive) return;
+      setLenses(info.lenses);
+      // re-ask defaults to the lens THIS trace was made with (if still available)
+      setLens(info.lenses.includes(trace.meta.lens) ? trace.meta.lens : info.default);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [trace.meta.lens]);
   const contradicted = useMemo(
     () => contradictedTerms(trace.question, trace.answer),
     [trace.question, trace.answer],
   );
+  const ask = () => onReAsk(trace.video_id, q.trim() || DEFAULT_QUESTION, lens);
 
   return (
     <div className="qa">
@@ -37,12 +81,13 @@ export function QueryConsole({ trace, answerRow, onSeekToken, onReAsk }: Props) 
           aria-label="new question"
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") onReAsk(trace.video_id, q.trim() || DEFAULT_QUESTION);
+            if (e.key === "Enter") ask();
           }}
         />
+        <LensSelect value={lens} onChange={setLens} lenses={lenses} />
         <button
           className="btn primary"
-          onClick={() => onReAsk(trace.video_id, q.trim() || DEFAULT_QUESTION)}
+          onClick={ask}
           title="re-runs the pipeline on this video"
         >
           re-ask ▶

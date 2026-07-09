@@ -1,6 +1,21 @@
 import { useEffect, useRef } from "react";
 import { heatColor, setupCanvas } from "./canvas";
 
+const normWord = (s: string | null | undefined) =>
+  s == null ? null : s.trim().toLowerCase() || null;
+
+function ellipsize(ctx: CanvasRenderingContext2D, s: string, maxW: number): string {
+  if (ctx.measureText(s).width <= maxW) return s;
+  let lo = 0;
+  let hi = s.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (ctx.measureText(s.slice(0, mid) + "…").width <= maxW) lo = mid;
+    else hi = mid - 1;
+  }
+  return s.slice(0, lo) + "…";
+}
+
 interface Props {
   rowLabels: string[];
   colLabels: string[];
@@ -18,6 +33,13 @@ interface Props {
   revealUpToCol?: number | null;
   /** Cells that pulse red: readouts here contain a premise the answer contradicts. */
   pulse?: boolean[][];
+  /**
+   * Top-1 readout word per cell, printed inside it (the jlens-qwen36
+   * readable-grid pattern). Pair with a wider cellW. Cells whose word matches
+   * the selected cell's word render emphasized, so echo/workspace/motor bands
+   * pop visually.
+   */
+  cellText?: (string | null)[][];
 }
 
 /**
@@ -39,8 +61,11 @@ export function GridCanvas({
   revealUpToRow,
   revealUpToCol,
   pulse,
+  cellText,
 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const didInitScroll = useRef(false);
   const headerH = 16;
   const nRows = rowLabels.length;
   const nCols = colLabels.length;
@@ -75,7 +100,7 @@ export function GridCanvas({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowLabels, colLabels, values, selected, highlightRow, highlightCol, revealUpToRow, revealUpToCol, pulse, anyPulse, width, height, cellW, cellH, labelW, maxAbs, nRows, nCols]);
+  }, [rowLabels, colLabels, values, selected, highlightRow, highlightCol, revealUpToRow, revealUpToCol, pulse, anyPulse, cellText, width, height, cellW, cellH, labelW, maxAbs, nRows, nCols]);
 
   function draw(ctx: CanvasRenderingContext2D, pulseAlpha: number) {
     ctx.clearRect(0, 0, width, height);
@@ -97,13 +122,26 @@ export function GridCanvas({
       ctx.fillStyle = highlightRow === r ? "#113f8c" : unrevealed ? "#c9c9c2" : "#1d1d1b";
       const lbl = rowLabels[r].length > 13 ? rowLabels[r].slice(0, 12) + "…" : rowLabels[r];
       ctx.fillText(lbl, 4, y + cellH / 2);
+      const selWord = selected ? normWord(cellText?.[selected.r]?.[selected.c]) : null;
       for (let c = 0; c < nCols; c++) {
         const v = values[r][c];
         const x = labelW + c * cellW;
         const cellUnrevealed = unrevealed || (revealUpToCol != null && c > revealUpToCol);
         ctx.globalAlpha = cellUnrevealed ? 0.12 : 1;
-        ctx.fillStyle = v == null ? "#f7f7f5" : heatColor(Math.abs(v) / maxAbs);
+        const heat = v == null ? 0 : Math.abs(v) / maxAbs;
+        ctx.fillStyle = v == null ? "#f7f7f5" : heatColor(heat);
         ctx.fillRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
+        const word = cellText?.[r]?.[c];
+        if (word != null) {
+          const matches = selWord != null && normWord(word) === selWord;
+          ctx.textAlign = "center";
+          ctx.font = (matches ? "bold " : "") + "10px 'IBM Plex Mono', monospace";
+          // readable over the heat ramp: dark text on faint cells, white on hot
+          ctx.fillStyle = matches ? (heat > 0.35 ? "#ffffff" : "#9b2f5f")
+            : heat > 0.55 ? "#f4f2ee" : "#2b2b28";
+          ctx.fillText(ellipsize(ctx, word.trim() || "·", cellW - 8), x + cellW / 2, y + cellH / 2);
+          ctx.font = "10px 'IBM Plex Mono', monospace";
+        }
         if (pulse?.[r]?.[c]) {
           // contradiction pulse: the readouts here contain a premise the
           // answer negates
@@ -141,8 +179,18 @@ export function GridCanvas({
     }
   }
 
+  // wide word grids open scrolled to the selected column (usually a late
+  // layer — where the content is) instead of the echo band at layer 0
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || didInitScroll.current || !selected) return;
+    if (el.scrollWidth <= el.clientWidth) return;
+    didInitScroll.current = true;
+    el.scrollLeft = Math.max(0, labelW + selected.c * cellW + cellW / 2 - el.clientWidth / 2);
+  }, [selected, labelW, cellW]);
+
   return (
-    <div className="canvas-scroll">
+    <div className="canvas-scroll" ref={scrollRef}>
       <canvas
         ref={ref}
         style={{ cursor: "pointer" }}

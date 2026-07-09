@@ -1,9 +1,21 @@
 import { useMemo, useState } from "react";
 import type { Trace } from "../trace/types";
-import { answerLayerGrid, answerTokensAt, type TokenStrength } from "../trace/jspace";
-import { STRENGTH_AXIS_LABEL } from "../constants";
+import { answerLayerGrid, answerLayerWords, answerTokensAt, type TokenStrength } from "../trace/jspace";
+import { LENS_LABELS, STRENGTH_AXIS_LABEL } from "../constants";
 import { answerGridPulse, contradictedTerms } from "../trace/terms";
 import { GridCanvas } from "./GridCanvas";
+
+export function LensChip({ lens, caveats }: { lens: string; caveats?: string[] }) {
+  const pretty = LENS_LABELS[lens] ?? lens;
+  return (
+    <span
+      className={"lens-chip" + (lens === "j-lens-v1" ? " jlens" : "")}
+      title={(caveats ?? []).join("\n") || `readouts decoded with ${pretty}`}
+    >
+      {pretty}
+    </span>
+  );
+}
 
 function PulseLegend({ terms }: { terms: Set<string> }) {
   if (terms.size === 0) return null;
@@ -67,6 +79,7 @@ export function AnswerWorkspace({
   playing: boolean;
 }) {
   const al = useMemo(() => answerLayerGrid(trace), [trace]);
+  const words = useMemo(() => answerLayerWords(trace), [trace]);
   const lastLayerCol = al.layers.length - 1;
   const [sel, setSel] = useState<{ r: number; c: number } | null>(
     trace.answer_tokens.length ? { r: 0, c: lastLayerCol } : null,
@@ -97,7 +110,10 @@ export function AnswerWorkspace({
   return (
     <div className="panel">
       <div className="panel-h">
-        <span>Workspace Slice · answer-token × layer</span>
+        <span>
+          Workspace Slice · answer-token × layer{" "}
+          <LensChip lens={trace.meta.lens} caveats={trace.meta.lens_caveats} />
+        </span>
         <span className="muted">
           {playing ? "playing — click a column to pick the layer" : "click a cell → raw top-10"}
         </span>
@@ -105,15 +121,18 @@ export function AnswerWorkspace({
       <div className="panel-b hero-split">
         <div className="hero-grid">
           <div className="axis-note" style={{ marginBottom: 3 }}>
-            {STRENGTH_AXIS_LABEL}, raw logit — generation replayed on the clip clock;
-            tokens were generated after the model saw the whole clip
+            each cell prints its top-1 readout; color = {STRENGTH_AXIS_LABEL} (raw
+            unembedding score) — clicking a cell emphasizes every cell reading the
+            same word; generation replayed on the clip clock
             <PulseLegend terms={terms} />
           </div>
           <GridCanvas
             rowLabels={rowLabels}
             colLabels={al.layers.map(String)}
             values={al.values}
-            cellH={13}
+            cellW={84}
+            cellH={20}
+            cellText={words}
             selected={target}
             highlightRow={answerRow}
             revealUpToRow={answerRow}

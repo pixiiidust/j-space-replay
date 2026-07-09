@@ -126,12 +126,22 @@ export function fakeApiPlugin(): Plugin {
           return;
         }
 
+        // GET /lenses — dev fake offers both so the pickers render; the
+        // fixture traces themselves are logit-lens either way
+        if (method === "GET" && url === "/lenses") {
+          sendJson(res, 200, {
+            lenses: ["logit-lens-v1", "j-lens-v1"],
+            default: "logit-lens-v1",
+          });
+          return;
+        }
+
         // POST /traces
         if (method === "POST" && url === "/traces") {
           const chunks: Buffer[] = [];
           req.on("data", (c: Buffer) => chunks.push(c));
           await new Promise<void>((r) => req.on("end", () => r()));
-          let body: { video_id?: string; question?: string } = {};
+          let body: { video_id?: string; question?: string; lens?: string } = {};
           try {
             body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
           } catch {
@@ -140,7 +150,7 @@ export function fakeApiPlugin(): Plugin {
           const videoId = body.video_id ?? (names[0] ?? "unknown");
           const question = body.question ?? "Describe what happens in this video.";
           const traceName = videoToName.get(videoId) ?? (names.includes(videoId) ? videoId : names[0]);
-          const key = `${videoId}::${question}`;
+          const key = `${videoId}::${question}::${body.lens ?? "logit-lens-v1"}`;
           if (cache.has(key)) {
             sendJson(res, 200, { trace_id: cache.get(key), cached: true });
             return;

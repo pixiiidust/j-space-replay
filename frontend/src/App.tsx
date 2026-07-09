@@ -22,8 +22,8 @@ export function App() {
   const openReplay = useCallback((traceId: string) => setRoute({ screen: "replay", traceId }), []);
 
   // "ask another question" from the replay screen re-runs the pipeline.
-  const reAsk = useCallback(async (videoId: string, question: string) => {
-    const res = await startTrace(videoId, question);
+  const reAsk = useCallback(async (videoId: string, question: string, lens?: string) => {
+    const res = await startTrace(videoId, question, lens);
     if (isCached(res)) setRoute({ screen: "replay", traceId: res.trace_id });
     else setRoute({ screen: "progress", jobId: res.job_id, question });
   }, []);

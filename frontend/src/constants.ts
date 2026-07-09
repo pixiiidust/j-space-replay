@@ -25,3 +25,13 @@ export const PLAYBACK_SPEEDS = [0.25, 0.5, 0.75, 1] as const;
 
 /** Axis label for strength — SPEC locks this; never "confidence"/"probability". */
 export const STRENGTH_AXIS_LABEL = "readout strength";
+
+/**
+ * Display names for the decode lenses. "logit lens" names the identity
+ * readout METHOD (unembed(norm(h))); the strengths shown are raw unembedding
+ * scores under either lens — keep the two ideas from blurring in UI copy.
+ */
+export const LENS_LABELS: Record<string, string> = {
+  "logit-lens-v1": "logit lens",
+  "j-lens-v1": "J-lens",
+};

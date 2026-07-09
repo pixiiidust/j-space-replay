@@ -60,14 +60,31 @@ export async function uploadVideo(file: File): Promise<UploadResult> {
 export async function startTrace(
   videoId: string,
   question?: string,
+  lens?: string,
 ): Promise<StartTraceResult> {
   const res = await fetch(`${BASE}/traces`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ video_id: videoId, question }),
+    body: JSON.stringify({ video_id: videoId, question, lens }),
   });
   // 202 -> queued job; 200 -> cached trace
   return jsonOrThrow<StartTraceResult>(res);
+}
+
+export interface LensInfo {
+  lenses: string[];
+  default: string;
+}
+
+/** Lenses this install can trace with (J-lens only when its fit file exists). */
+export async function getLenses(): Promise<LensInfo> {
+  try {
+    const res = await fetch(`${BASE}/lenses`);
+    return await jsonOrThrow<LensInfo>(res);
+  } catch {
+    // older backend without /lenses -> logit lens only
+    return { lenses: ["logit-lens-v1"], default: "logit-lens-v1" };
+  }
 }
 
 export function isCached(r: StartTraceResult): r is StartTraceCached {

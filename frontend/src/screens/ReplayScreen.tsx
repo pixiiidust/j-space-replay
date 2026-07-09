@@ -9,13 +9,13 @@ import { HonestyBanner } from "../components/HonestyBanner";
 import { VideoPanel, type OverlayMode } from "../components/VideoPanel";
 import { Controls } from "../components/Controls";
 import { QueryConsole } from "../components/QueryConsole";
-import { AnswerWorkspace } from "../components/JSpaceSlice";
+import { AnswerWorkspace, LensChip } from "../components/JSpaceSlice";
 import { ConceptBoard } from "../components/ConceptBoard";
 import { EventLog } from "../components/EventLog";
 
 interface Props {
   traceId: string;
-  onReAsk(videoId: string, question: string): void;
+  onReAsk(videoId: string, question: string, lens?: string): void;
   onOpenLibrary(): void;
 }
 
@@ -80,7 +80,7 @@ function ReplayBody(props: {
   setHidden(s: Set<string>): void;
   overlay: OverlayMode;
   setOverlay(m: OverlayMode): void;
-  onReAsk(videoId: string, question: string): void;
+  onReAsk(videoId: string, question: string, lens?: string): void;
   onOpenLibrary(): void;
 }) {
   const {
@@ -137,7 +137,7 @@ function ReplayBody(props: {
         <div className="metaline">
           clip <b>{dur}s</b> | frame groups <b>{trace.frame_groups.length}</b> | layers{" "}
           <b>{meta.n_layers}</b> | concepts <b>{model.mode === "concepts" ? model.rows.length : 0}</b>{" "}
-          | model <b>{meta.model}</b> | lens <b>{meta.lens}</b>
+          | model <b>{meta.model}</b> | <LensChip lens={meta.lens} caveats={meta.lens_caveats} />
         </div>
       </div>
 

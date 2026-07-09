@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   answerLayerGrid,
+  answerLayerWords,
+  answerLayers,
   bestLayerForWord,
   groupLayerGrid,
   patchHeatmapForWord,
@@ -75,5 +77,32 @@ describe("j-space slice selectors", () => {
   it("topTokens clamps to k and tolerates undefined", () => {
     expect(topTokens(undefined)).toEqual([]);
     expect(topTokens({ top_tokens: ["a", "b", "c"], strengths: [3, 2, 1] }, 2)).toHaveLength(2);
+  });
+});
+
+describe("answerLayerWords", () => {
+  it("returns each cell's top-1 token, null where a layer has no readout", () => {
+    const trace = makeTrace([], {
+      answer_tokens: [
+        {
+          token: "The",
+          readouts_by_layer: {
+            "20": { top_tokens: ["▁The", "▁A"], strengths: [8.0, 6.0] },
+            "28": { top_tokens: ["▁The"], strengths: [12.0] },
+          },
+        } as AnswerToken,
+        {
+          token: "ball",
+          readouts_by_layer: {
+            "28": { top_tokens: ["▁ball"], strengths: [10.0] },
+          },
+        } as AnswerToken,
+      ],
+    });
+    expect(answerLayers(trace)).toEqual([20, 28]);
+    expect(answerLayerWords(trace)).toEqual([
+      ["▁The", "▁The"],
+      [null, "▁ball"],
+    ]);
   });
 });

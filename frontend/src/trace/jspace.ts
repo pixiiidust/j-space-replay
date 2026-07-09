@@ -99,6 +99,25 @@ export function answerTokensAt(
 }
 
 /**
+ * answer-token x layer matrix of each cell's top-1 readout token — the words
+ * printed on the workspace grid (jlens-qwen36's readable-grid pattern).
+ * null where a cell has no readout.
+ */
+export function answerLayerWords(trace: Trace): (string | null)[][] {
+  const layers = answerLayers(trace);
+  const layerIndex = new Map(layers.map((l, i) => [l, i]));
+  return trace.answer_tokens.map((at) => {
+    const row: (string | null)[] = new Array(layers.length).fill(null);
+    for (const [l, r] of Object.entries(at.readouts_by_layer)) {
+      const li = layerIndex.get(Number(l));
+      if (li == null) continue;
+      row[li] = r.top_tokens.length ? r.top_tokens[0] : null;
+    }
+    return row;
+  });
+}
+
+/**
  * Patch heatmap for a target word within one frame group: for each patch,
  * 1 where its top-1 token (decoded via token_strings) matches the target
  * word (by wordKey), else 0. Row-major over patch_grid [rows, cols].

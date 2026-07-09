@@ -4,11 +4,12 @@
 
 Routes:
   POST /videos                (multipart "file")  -> {video_id, filename, duration_s}
-  POST /traces                {video_id, question?} -> 202 {job_id, queue_position}
-                                                     |  200 {trace_id, cached: true}
+  POST /traces                {video_id, question?, lens?} -> 202 {job_id, queue_position}
+                                                            |  200 {trace_id, cached: true}
   GET  /jobs/{job_id}         -> staged progress
   GET  /traces/{trace_id}     -> trace JSON (schema v1)
   GET  /library              -> {items: [...]}
+  GET  /lenses               -> {lenses: [...], default}
   GET  /videos/{video_id}/file -> raw video bytes
 
 POST /videos enforces the M5 input limits with friendly JSON errors:
@@ -30,7 +31,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from jsr.server.ids import DEFAULT_QUESTION, trace_id_for, video_id_for
+from jsr.server.ids import DEFAULT_LENS, DEFAULT_QUESTION, LENSES, trace_id_for, video_id_for
 from jsr.server.jobs import JobQueue
 from jsr.server.pipeline import Pipeline
 from jsr.server.store import TraceStore, VideoStore
@@ -46,6 +47,7 @@ MAX_DURATION_S = 25.0  # hard clip-length cap
 class TraceRequest(BaseModel):
     video_id: str
     question: str | None = None
+    lens: str | None = None  # None -> DEFAULT_LENS; else must be one of ids.LENSES
 
 
 def default_probe_duration(data: bytes, filename: str) -> float:
@@ -136,19 +138,33 @@ def create_app(
         if video_store.get(req.video_id) is None:
             raise HTTPException(status_code=404, detail=f"unknown video_id {req.video_id}")
         question = req.question if (req.question and req.question.strip()) else DEFAULT_QUESTION
-        trace_id = trace_id_for(req.video_id, question)
+        lens = req.lens or DEFAULT_LENS
+        if lens not in LENSES:
+            raise HTTPException(status_code=422, detail=f"unknown lens {lens!r}; one of {list(LENSES)}")
+        trace_id = trace_id_for(req.video_id, question, lens)
         if trace_store.has(trace_id):  # cache hit -> instant
             return {"trace_id": trace_id, "cached": True}
         existing = job_queue.find_active(trace_id)
-        if existing is not None:  # same (video, question) already in flight
+        if existing is not None:  # same (video, question, lens) already in flight
             return JSONResponse(
                 status_code=202,
                 content={"job_id": existing.id,
                          "queue_position": job_queue.position_of(existing.id) or 0},
             )
-        job = job_queue.submit(video_id=req.video_id, question=question, trace_id=trace_id)
+        job = job_queue.submit(video_id=req.video_id, question=question,
+                               trace_id=trace_id, lens=lens)
         position = job_queue.position_of(job.id) or 0
         return JSONResponse(status_code=202, content={"job_id": job.id, "queue_position": position})
+
+    @app.get("/lenses")
+    async def get_lenses():
+        """Which lenses this install can trace with right now. The J-lens
+        ships as a fit recipe, not weights — it is offered only when
+        jlens/j_lens_v1.pt exists (scripts/fit_jlens.py regenerates it)."""
+        from jsr.lens import JLENS_PATH
+
+        available = ["logit-lens-v1"] + (["j-lens-v1"] if JLENS_PATH.exists() else [])
+        return {"lenses": available, "default": DEFAULT_LENS}
 
     @app.get("/jobs/{job_id}")
     async def get_job(job_id: str):

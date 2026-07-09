@@ -36,6 +36,7 @@ class Job:
     video_id: str
     question: str
     trace_id: str
+    lens: str = "logit-lens-v1"
     status: str = "queued"  # queued | running | done | error
     stage: str | None = None
     stages_done: list[str] = field(default_factory=list)
@@ -88,8 +89,10 @@ class JobQueue:
         self._worker = threading.Thread(target=self._loop, name="jsr-job-worker", daemon=True)
         self._worker.start()
 
-    def submit(self, *, video_id: str, question: str, trace_id: str) -> Job:
-        job = Job(id=uuid.uuid4().hex, video_id=video_id, question=question, trace_id=trace_id)
+    def submit(self, *, video_id: str, question: str, trace_id: str,
+               lens: str = "logit-lens-v1") -> Job:
+        job = Job(id=uuid.uuid4().hex, video_id=video_id, question=question,
+                  trace_id=trace_id, lens=lens)
         with self._cond:
             self._jobs[job.id] = job
             self._active.append(job.id)
