@@ -7,7 +7,7 @@
   "top10": [
    {
     "label": "brown",
-    "strength": 4.58,
+    "strength": 3.34,
     "layer": 27,
     "group": 3,
     "source_tokens": [
@@ -15,12 +15,31 @@
     ]
    },
    {
-    "label": "red",
-    "strength": 0.85,
-    "layer": 27,
-    "group": 1,
+    "label": "white",
+    "strength": 1.4,
+    "layer": 23,
+    "group": 0,
     "source_tokens": [
-     "red"
+     "white"
+    ]
+   },
+   {
+    "label": "ball",
+    "strength": 1.01,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "ball"
+    ]
+   },
+   {
+    "label": "ball brown",
+    "strength": 1.01,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "ball",
+     "brown"
     ]
    }
   ]
@@ -33,7 +52,7 @@
   "top10": [
    {
     "label": "square",
-    "strength": 7.89,
+    "strength": 3.17,
     "layer": 27,
     "group": 3,
     "source_tokens": [
@@ -42,7 +61,7 @@
    },
    {
     "label": "blue",
-    "strength": 4.99,
+    "strength": 3.11,
     "layer": 27,
     "group": 2,
     "source_tokens": [
@@ -51,39 +70,29 @@
    },
    {
     "label": "smaller",
-    "strength": 4.17,
-    "layer": 23,
+    "strength": 2.63,
+    "layer": 24,
     "group": 1,
     "source_tokens": [
      "smaller"
     ]
    },
    {
-    "label": "blue square",
-    "strength": 4.16,
-    "layer": 27,
-    "group": 3,
-    "source_tokens": [
-     "blue",
-     "square"
-    ]
-   },
-   {
-    "label": "white",
-    "strength": 1.39,
-    "layer": 23,
-    "group": 0,
-    "source_tokens": [
-     "white"
-    ]
-   },
-   {
     "label": "inside",
-    "strength": 1.39,
-    "layer": 23,
+    "strength": 1.15,
+    "layer": 22,
     "group": 1,
     "source_tokens": [
      "inside"
+    ]
+   },
+   {
+    "label": "background",
+    "strength": 0.62,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "background"
     ]
    }
   ]
@@ -95,17 +104,8 @@
   "caption": "traffic light, red, green, car, gray, moving, road, gray",
   "top10": [
    {
-    "label": "traffic",
-    "strength": 5.82,
-    "layer": 27,
-    "group": 2,
-    "source_tokens": [
-     "traffic"
-    ]
-   },
-   {
     "label": "light",
-    "strength": 3.34,
+    "strength": 4.37,
     "layer": 27,
     "group": 2,
     "source_tokens": [
@@ -113,8 +113,17 @@
     ]
    },
    {
+    "label": "traffic",
+    "strength": 3.3,
+    "layer": 26,
+    "group": 2,
+    "source_tokens": [
+     "traffic"
+    ]
+   },
+   {
     "label": "traffic light",
-    "strength": 3.34,
+    "strength": 2.56,
     "layer": 27,
     "group": 2,
     "source_tokens": [
@@ -123,12 +132,39 @@
     ]
    },
    {
-    "label": "signaling",
-    "strength": 2.51,
+    "label": "black",
+    "strength": 1.84,
     "layer": 27,
-    "group": 1,
+    "group": 3,
+    "source_tokens": [
+     "black"
+    ]
+   },
+   {
+    "label": "red",
+    "strength": 1.79,
+    "layer": 25,
+    "group": 0,
+    "source_tokens": [
+     "red"
+    ]
+   },
+   {
+    "label": "signaling",
+    "strength": 1.48,
+    "layer": 24,
+    "group": 0,
     "source_tokens": [
      "signal"
+    ]
+   },
+   {
+    "label": "gray",
+    "strength": 1.27,
+    "layer": 27,
+    "group": 4,
+    "source_tokens": [
+     "gray"
     ]
    }
   ]
@@ -140,19 +176,28 @@
   "caption": "blue circle, white background, moving up, disappearing, reappearing, moving down",
   "top10": [
    {
+    "label": "white",
+    "strength": 1.4,
+    "layer": 23,
+    "group": 0,
+    "source_tokens": [
+     "white"
+    ]
+   },
+   {
     "label": "background",
-    "strength": 1.24,
+    "strength": 1.02,
     "layer": 27,
-    "group": 1,
+    "group": 0,
     "source_tokens": [
      "background"
     ]
    },
    {
     "label": "blue",
-    "strength": 0.85,
+    "strength": 0.98,
     "layer": 27,
-    "group": 0,
+    "group": 1,
     "source_tokens": [
      "blue"
     ]
@@ -166,21 +211,21 @@
   "caption": "green squares, dark background, no movement",
   "top10": [
    {
-    "label": "green",
-    "strength": 4.19,
-    "layer": 27,
-    "group": 1,
-    "source_tokens": [
-     "green"
-    ]
-   },
-   {
     "label": "black",
-    "strength": 1.27,
+    "strength": 4.09,
     "layer": 27,
     "group": 2,
     "source_tokens": [
      "black"
+    ]
+   },
+   {
+    "label": "green",
+    "strength": 3.34,
+    "layer": 27,
+    "group": 1,
+    "source_tokens": [
+     "green"
     ]
    }
   ]
@@ -190,7 +235,26 @@
   "known_content": "red square grows in center, white background",
   "answer": "The video starts with a white background. Gradually, a red square appears in the center of the screen. The square remains stationary and does not change in size or position throughout the video.",
   "caption": "red square, white background, no movement",
-  "top10": []
+  "top10": [
+   {
+    "label": "background",
+    "strength": 2.74,
+    "layer": 26,
+    "group": 1,
+    "source_tokens": [
+     "background"
+    ]
+   },
+   {
+    "label": "white",
+    "strength": 1.4,
+    "layer": 23,
+    "group": 0,
+    "source_tokens": [
+     "white"
+    ]
+   }
+  ]
  },
  {
   "clip": "gate_yellow_circle_slide.mp4",
@@ -199,9 +263,18 @@
   "caption": "yellow circles, white background, moving together",
   "top10": [
    {
+    "label": "white",
+    "strength": 1.79,
+    "layer": 23,
+    "group": 1,
+    "source_tokens": [
+     "white"
+    ]
+   },
+   {
     "label": "background",
-    "strength": 2.06,
-    "layer": 27,
+    "strength": 1.62,
+    "layer": 25,
     "group": 2,
     "source_tokens": [
      "background"
@@ -216,10 +289,37 @@
   "caption": "purple square, dark background, two squares, one above another, moving up and down",
   "top10": [
    {
-    "label": "square",
-    "strength": 2.09,
+    "label": "black",
+    "strength": 1.27,
+    "layer": 27,
+    "group": 0,
+    "source_tokens": [
+     "black"
+    ]
+   },
+   {
+    "label": "purple",
+    "strength": 1.27,
     "layer": 27,
     "group": 2,
+    "source_tokens": [
+     "purple"
+    ]
+   },
+   {
+    "label": "background",
+    "strength": 1.02,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "background"
+    ]
+   },
+   {
+    "label": "square",
+    "strength": 0.79,
+    "layer": 27,
+    "group": 1,
     "source_tokens": [
      "square"
     ]
@@ -231,7 +331,26 @@
   "known_content": "green circle grows in center, dark background",
   "answer": "The video starts with a black screen, and then a green circle appears in the center of the screen. The circle remains stationary for a few seconds before it begins to expand outward, growing larger un",
   "caption": "green circle, dark background, no movement",
-  "top10": []
+  "top10": [
+   {
+    "label": "black",
+    "strength": 3.71,
+    "layer": 23,
+    "group": 0,
+    "source_tokens": [
+     "black"
+    ]
+   },
+   {
+    "label": "background",
+    "strength": 0.62,
+    "layer": 27,
+    "group": 2,
+    "source_tokens": [
+     "background"
+    ]
+   }
+  ]
  },
  {
   "clip": "gate_blue_square_slide.mp4",
@@ -241,11 +360,29 @@
   "top10": [
    {
     "label": "blue",
-    "strength": 1.27,
+    "strength": 1.69,
     "layer": 27,
-    "group": 1,
+    "group": 2,
     "source_tokens": [
      "blue"
+    ]
+   },
+   {
+    "label": "background",
+    "strength": 1.62,
+    "layer": 25,
+    "group": 2,
+    "source_tokens": [
+     "background"
+    ]
+   },
+   {
+    "label": "vertical",
+    "strength": 1.42,
+    "layer": 25,
+    "group": 0,
+    "source_tokens": [
+     "vertical"
     ]
    }
   ]

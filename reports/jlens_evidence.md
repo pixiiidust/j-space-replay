@@ -3,7 +3,16 @@
 Run on Pixie (RTX 5070 Ti, torch 2.11.0+cu128, transformers 5.13, NF4+SDPA),
 2026-07-08. Lens fit by `scripts/fit_jlens.py` over 15 video prompts
 (3 fixtures + 7 gate clips + 5 baseline clips, default question, prefill
-positions, skip_first=4); ~178 s/layer, ~80 min total on the 5070 Ti.
+positions, skip_first=4); ~177 s/layer, ~80 min total on the 5070 Ti.
+
+Two fits were run. The first followed the jlens-qwen36 repo's chain seed
+(final-norm Jacobian at the top). Re-reading the workspace paper
+(transformer-circuits.pub/2026/workspace) against the repo showed the repo
+deviates from the paper: the paper defines J on the PRE-norm final residual
+with normalization only at read time — "the logit lens ... corresponds to
+setting J_l = I in our formulation" — so the final layer's J is the
+identity. The corrected (identity-seed) fit is `j-lens-v1`; the norm-seeded
+variant is kept at `jlens/j_lens_v1_normseed.pt` for the A/B below.
 
 ## Component verification (criterion 1: match autograd, ~1e-3 fp32)
 
@@ -24,11 +33,14 @@ dequantized weights). Real captured video-prefill activations, layers 0/12/27:
 full-layer residual is the reference repo's documented branch-product
 junction approximation at the same magnitude they measured (~1.5e-2).
 
+Identity check after the seed fix: layer-27 top-5 readouts are **identical**
+to the logit lens on all ball_drop groups (J_27 = I, as the paper requires).
+
 Gate 0 (NF4-runtime vs true-weight drift, the gap the averaged lens must
 tolerate): 7–14% rel on single-layer branch deltas, cos ≥ 0.99
 (`reports/jlens_gate0.json`) — recorded in the lens meta caveats.
 
-## Mid-layer grid, before/after (criterion 2) — ball_drop, "Why does the ball fall?"
+## Grid, before/after (criterion 2) — ball_drop, "Why does the ball fall?"
 
 Logit lens (before):
 
@@ -42,78 +54,94 @@ layer | g0 0-2s            | g1 2-4s            | g2 4-6s            | g3 6-8s
    27 | gray,the           | red,brown          | the,brown          | the,brown
 ```
 
-J-lens (after):
+J-lens, identity seed (after):
 
 ```
 layer | g0 0-2s            | g1 2-4s            | g2 4-6s            | g3 6-8s
-    0 | all                | all                | all                | all,test
-    8 | all,the            | all,the            | all,the            | all,the
-   12 | all,only           | all,only           | all,only           | all,only
-   16 | all,more           | all,just           | all,just           | all,more
-   24 | printStats,matchCo | GuidId,twor        | addCriterion,GuidI | longer,addCriterio
-   27 | balance,sees       | red,gray           | brown,sees         | brown,the
+    0 | the                | the                | the                | the
+    8 | the,to             | the,to             | the,to             | the,to
+   12 | the,to             | the,to             | the,to             | the,to
+   16 | the,two            | the,two            | the                | the
+   20 | two                | two                | two                | one
+   24 | level              | two,level          | horizontal,move    | off,right
+   27 | gray,the           | red,brown          | the,brown          | the,brown
 ```
 
-Per-layer visual wordlike share (patch top-1): layers 6–15 move from 9–25%
-(logit) to **36–54%** (j-lens); answer-position junk collapses from 50–82%
-to 6–24% at every layer.
+Layer 24 is the headline: **temporally differentiated motion/relation
+content** — `level` while the ball sits on the table, `horizontal, move`
+while it rolls, `off, right` as it falls off the right edge — where the
+logit lens reads `GuidId` and the norm-seeded variant read
+`printStats/addCriterion` junk. These relation words never appear at layer
+27 (which reads colors/objects), i.e. the band 22–26 exposes workspace-like
+content the output layer itself does not.
 
-Content-token scan (ball/red/brown/fall/roll/balance/... anywhere in top-15):
+Content-token onset (ball/brown/roll/move/off/level/horizontal/... anywhere
+in top-15):
 
-- logit lens: content **only at layers 25–27**.
-- j-lens: content from **layer 22** (`balance`, `ball`, `left` at 22–23,
-  shares 0.03–0.08), then the same late-layer band.
-
-**Verdict on criterion 2: verified partial negative.** The port is verified
-(criterion 1), and the transport demonstrably fixes the mid-layer BASIS —
-readouts become real tokens instead of `registrazione`/`GuidId` junk — but
-what is linearly readable there under a corpus-averaged Jacobian is generic
-function words (`all`, `the`, `only`, `more`), uniform across time. Wordlike:
-yes. Temporally differentiated content at layers 8–20: **no**. The content
-band extends down ~3 layers (25→22), not into the mid stack.
-
-Answer-token side (bonus, not a criterion): the j-lens makes mid-layer answer
-readouts dramatically more workspace-like (50–74% wordlike-non-echo-non-motor
-vs 18–40%), with motor onset visible from layer ~3; but late-layer motor
-fidelity REGRESSES (L27 motor 90% → 34%) because the averaged final-norm
-factor smears the already-aligned top layers. The logit lens therefore stays
-the default; `--lens j-lens-v1` is the opt-in.
-
-Per the PRD decision tree (issue #1) and SPEC honesty framing: mid-layer
-patch content stays unavailable after a verified port -> the hero surface
-remains answer-token x layer (already the UI hero since PR #19), and this
-negative is recorded rather than papered over.
-
-## Concept recall (criterion 3) — verified negative
-
-Baseline stats refit with the j-lens (`baseline_stats_jlens.json`), concept
-layer floor set from the evidence above (22 for j-lens vs 20 for logit),
-M2 gate re-run (`reports/m2_quality_gate_jlens.json`), same 10 clips:
-
-|  | logit-lens-v1 | j-lens-v1 |
+| lens | content onset | density at 24 (hits across 4 groups) |
 |---|---|---|
-| concepts surfaced (all clips) | 26 | **19** |
-| known-content elements covered | 12/54 | **11/54** |
+| logit | layer 25 | 0 |
+| j-lens norm-seed (repo convention) | 22 (weak) | 3 |
+| j-lens identity seed (paper) | 22 | **9, temporally coherent** |
 
-Recall does NOT move up — it moves slightly down. The two causes are visible
-in the grids: (1) the newly wordlike mid layers contain function words, not
-content, so nothing new matches candidates; (2) the averaged transport
-slightly smears the late-layer band where the logit lens was already
-vocabulary-aligned, lowering content patch-shares (e.g. brown 0.11 -> 0.07
-peaks on ball_drop). The M2 "concepts experimental" fallback stands.
+Answer-token classification (workspace_range.py): clean echo -> workspace ->
+motor progression — echo 2–10% at layers 0–17, motor rising monotonically
+8% (L0) -> 23% (L8) -> 38% (L20) -> **90% (L27, = logit lens exactly)**;
+junk 2–30% vs logit's 34–82%. The norm-seeded variant's late-layer motor
+regression (L27 90% -> 34%) is gone by construction.
 
-## Timing (criterion 4) — pass
+Mid layers 8–20 on visual patches: still function words (`the`, `to`,
+`two`) — patch content below layer ~22 remains not linearly readable under
+a corpus-averaged J. Suggested UI display band (visual+answer combined
+score): layers 6–13 for answer-workspace viewing; content band for patches
+is 22–27.
 
-J application is one extra 3584x3584 fp16 matvec per readout.
-`_timing_traffic_15s.mp4` with `--lens j-lens-v1`: **17.8 s total including
-model load** (lens_decode 1.23 s vs 1.22 s logit at M1) — well inside 90 s.
+**Verdict on criterion 2: PARTIAL PASS.** Mid layers 8–20 stay content-free
+on patches (the honest negative survives), but the corrected lens unlocks a
+real content band at 22–26 with motion/spatial relations absent from both
+the logit lens and the output layer, plus a dramatically cleaner answer-token
+workspace view at all layers.
+
+## Concept recall (criterion 3) — PASS after the seed fix
+
+Baseline stats refit per lens (`baseline_stats_jlens.json`), M2 gate re-run
+(`reports/m2_quality_gate_jlens.json`), same 10 clips, layer floor 22:
+
+|  | logit-lens-v1 | j-lens norm-seed | j-lens identity seed |
+|---|---|---|---|
+| concepts surfaced (all clips) | 26 | 19 | **34** |
+| known-content elements covered | 12/54 | 11/54 | **16/54** |
+
+Recall moves up +31% / +33% with the paper-faithful seed (it moved DOWN
+under the repo's seed — the extra final-norm factor smeared the late band).
+8 of 10 clips improve or hold; new concepts are content ("ball", "square",
+"smaller", "inside", "purple", "background"). Concepts remain experimental
+(precision re-judgment pending); raw grid stays primary per the M2 fallback.
+
+## Timing (criterion 4) — PASS
+
+`_timing_traffic_15s.mp4` with `--lens j-lens-v1`: **16.1 s total including
+model load** (lens_decode 1.22 s — J application is one extra 3584x3584
+fp16 matvec per readout). Budget: 90 s.
 
 ## Overall verdict
 
-Verified port, honest negative on the product question: the J-lens fixes the
-mid-layer readout BASIS but does not surface mid-layer visual content or
-improve concept recall on Qwen2.5-VL video prompts. Per the PRD decision
-tree: the hero surface stays answer-token x layer (already the UI hero) with
-the late-layer patch band; `--lens j-lens-v1` remains an opt-in research
-lens whose genuine improvement is answer-token workspace readability at mid
-layers (junk 50-82% -> 6-24%). Logit lens stays the default.
+Verified port; the arbiter question splits cleanly:
+
+- **Mid-layer (8–20) patch content: verified negative.** Even a correct,
+  paper-faithful averaged J-lens reads only function words there.
+  Per the PRD decision tree the answer-token x layer surface stays the hero.
+- **Late-mid band (22–26): real unlock.** Temporally differentiated
+  motion/relation readouts invisible to the logit lens; content onset moves
+  25 -> 22; M2 concept recall +31%.
+- **Answer-token view: unambiguous win** (echo->workspace->motor visible,
+  junk collapsed, late layers exactly = logit lens).
+
+`--lens j-lens-v1` stays opt-in for v0.2 (logit lens default) pending a
+precision re-judgment of the new concepts; flipping the default is a
+one-line change once judged.
+
+Process note, recorded for honesty: the first fit ported the reference
+repo's chain-seed convention, whose late-layer damage initially flipped
+criteria 2/3 to negative. Checking the implementation against the PAPER's
+formulation (not just the repo) is what caught it.
