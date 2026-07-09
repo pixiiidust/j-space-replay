@@ -54,27 +54,50 @@ const NEGATIONS = new Set([
 ]);
 
 /**
- * Content words the ANSWER denies: a content word inside a short window
- * after a negation cue ("did not fall", "there is no dog"). A word is
- * dropped again if the answer affirms it more often than it denies it
- * (mentions outside negation windows outnumber those inside). Purely
- * mechanical string analysis of the answer text.
+ * Hedge/evidentiality/auxiliary words that CARRY a denial without being its
+ * target: "no visible evidence of the panda being pushed" denies "pushed",
+ * not "visible"/"evidence"/"being". Skipped inside negation windows without
+ * consuming them.
  */
-export function deniedTerms(answer: string, window = 6): Set<string> {
+const TRANSPARENT = new Set([
+  "visible", "evidence", "indication", "indications", "sign", "signs",
+  "suggestion", "apparent", "apparently", "clear", "clearly", "obvious",
+  "obviously", "actual", "actually", "really", "exactly", "longer", "just",
+  "any", "anything", "anymore", "yet", "being", "been", "able", "way",
+  "seem", "seems", "seemed", "appear", "appears", "appeared", "show",
+  "shows", "showing", "shown", "look", "looks", "looking",
+  "first", "last", "once", "immediately", "initially", "currently",
+]);
+
+const isTransparent = (w: string) =>
+  STOP.has(w) || NEGATIONS.has(w) || TRANSPARENT.has(w) || w.length < 3;
+
+/**
+ * Content words the ANSWER rules out: after each negation cue, the next
+ * couple of real content words, skipping the hedge scaffolding that carries
+ * the denial ("no visible evidence of the panda being pushed" -> pushed).
+ * A word is dropped again if the answer affirms it more often than it
+ * denies it (mentions outside negation reach outnumber those inside).
+ * Purely mechanical string analysis of the answer text.
+ */
+export function deniedTerms(answer: string, maxContent = 2, reach = 10): Set<string> {
   const words = answer.toLowerCase().match(/[a-z][a-z'-]*/g) ?? [];
-  // mark every position covered by a negation window
+  // positions of content words a negation reaches
   const negated = new Array<boolean>(words.length).fill(false);
   for (let i = 0; i < words.length; i++) {
     if (!NEGATIONS.has(words[i])) continue;
-    for (let j = i + 1; j <= Math.min(i + window, words.length - 1); j++) {
+    let content = 0;
+    for (let j = i + 1; j < words.length && j <= i + reach && content < maxContent; j++) {
+      if (isTransparent(words[j])) continue;
       negated[j] = true;
+      content += 1;
     }
   }
   const denials = new Map<string, number>();
   const affirmations = new Map<string, number>();
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
-    if (w.length < 3 || STOP.has(w) || NEGATIONS.has(w)) continue;
+    if (isTransparent(w)) continue;
     const c = canonWord(w);
     const bucket = negated[i] ? denials : affirmations;
     bucket.set(c, (bucket.get(c) ?? 0) + 1);

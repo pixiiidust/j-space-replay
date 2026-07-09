@@ -109,8 +109,8 @@ export function QueryConsole({ trace, answerRow, onSeekToken, onReAsk }: Props) 
       </div>
       {contradicted.size > 0 && (
         <div className="premise-check">
-          adversarial check: the answer denies “{[...contradicted].join("”, “")}” — cells
-          whose readouts contain it pulse red in the grid below
+          adversarial check: the answer rules out “{[...contradicted].join("”, “")}” —
+          cells still reading it pulse red in the grid below
         </div>
       )}
     </div>
