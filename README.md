@@ -11,7 +11,7 @@ Based on Anthropic's [workspace paper](https://transformer-circuits.pub/2026/wor
 and on [WeZZard/jlens-qwen36](https://github.com/WeZZard/jlens-qwen36),
 which does the same for text. Not a research-grade reproduction of either.
 
-[![replay dashboard - click for the video demo](docs/screenshot.png)](docs/demo.mp4?raw=true)
+https://github.com/user-attachments/assets/bf9a76e6-0ad8-4dea-a1b1-a4380a8298f5
 
 *Click the image for a 37 s video demo: "did human fall" on a panda clip. The
 model answers "no indication of a human falling" while cells still reading
