@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { answerGridPulse, canonWord, contentWords, contradictedTerms, tokensHitTerms } from "./terms";
+import { answerGridPulse, canonWord, contentWords, deniedTerms, tokensHitTerms } from "./terms";
 import type { AnswerToken } from "./types";
 
 describe("contradiction tracking (adversarial signal)", () => {
@@ -16,28 +16,30 @@ describe("contradiction tracking (adversarial signal)", () => {
     expect(canonWord("falling")).toBe("fall");
   });
 
-  it("detects a negated question term in the answer", () => {
-    const t = contradictedTerms(
-      "Why is the dog wet?",
-      "The image does not show a dog or any indication of why a dog might be wet.",
-    );
-    expect(t.has("dog")).toBe(true);
+  it("detects a term the answer denies, regardless of the question", () => {
+    const t = deniedTerms("The panda did not fall from the structure.");
+    expect(t.has("fall")).toBe(true);
+    expect(t.has("panda")).toBe(false); // the subject is not the denial
   });
 
-  it("no negation, no contradiction", () => {
-    const t = contradictedTerms(
-      "Why does the car start moving?",
-      "The car starts moving because the traffic light changes from red to green.",
-    );
+  it("no negation, no adversarial terms", () => {
+    const t = deniedTerms("The car starts moving because the light changes to green.");
     expect(t.size).toBe(0);
   });
 
-  it("negation of a non-question word does not fire", () => {
-    const t = contradictedTerms("Why is the dog wet?", "There is no umbrella in the scene.");
-    expect(t.size).toBe(0);
+  it("denials also fire for words never in the question", () => {
+    const t = deniedTerms("There is no umbrella in the scene.");
+    expect(t.has("umbrella")).toBe(true);
   });
 
-  it("pulse matrix lights cells whose readouts contain a contradicted term", () => {
+  it("a word affirmed more often than denied is dropped", () => {
+    const t = deniedTerms(
+      "The ball does not fall at first. Later the ball falls off the edge and keeps falling.",
+    );
+    expect(t.has("fall")).toBe(false);
+  });
+
+  it("pulse matrix lights cells whose readouts contain a denied term", () => {
     const terms = new Set(["dog"]);
     const tokens: AnswerToken[] = [
       { token: " no", readouts_by_layer: { "27": { top_tokens: [" dog"], strengths: [1] } } },

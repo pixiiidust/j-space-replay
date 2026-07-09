@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { Trace } from "../trace/types";
 import { answerLayerGrid, answerLayerWords, answerTokensAt, type TokenStrength } from "../trace/jspace";
 import { LENS_LABELS, STRENGTH_AXIS_LABEL } from "../constants";
-import { answerGridPulse, contradictedTerms } from "../trace/terms";
+import { answerGridPulse, deniedTerms } from "../trace/terms";
 import { GridCanvas } from "./GridCanvas";
 
 export function LensChip({ lens, caveats }: { lens: string; caveats?: string[] }) {
@@ -21,7 +21,7 @@ function PulseLegend({ terms }: { terms: Set<string> }) {
   if (terms.size === 0) return null;
   return (
     <span style={{ color: "#c0392b" }}>
-      {" "}· pulsing cells read “{[...terms].join('”, “')}” — a premise the answer contradicts
+      {" "}· pulsing cells read “{[...terms].join('”, “')}” — content the answer denies
     </span>
   );
 }
@@ -85,7 +85,7 @@ export function AnswerWorkspace({
     trace.answer_tokens.length ? { r: 0, c: lastLayerCol } : null,
   );
   const rowLabels = trace.answer_tokens.map((t, i) => `${i}:${t.token.replace(/▁/g, "·")}`);
-  const terms = useMemo(() => contradictedTerms(trace.question, trace.answer), [trace]);
+  const terms = useMemo(() => deniedTerms(trace.answer), [trace]);
   const pulse = useMemo(
     () => answerGridPulse(trace.answer_tokens, al.layers, terms),
     [trace, al.layers, terms],

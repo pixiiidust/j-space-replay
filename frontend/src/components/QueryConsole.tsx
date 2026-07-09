@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Trace } from "../trace/types";
 import { getLenses } from "../api/client";
 import { DEFAULT_QUESTION, LENS_LABELS } from "../constants";
-import { contradictedTerms } from "../trace/terms";
+import { deniedTerms } from "../trace/terms";
 
 interface Props {
   trace: Trace;
@@ -65,10 +65,7 @@ export function QueryConsole({ trace, answerRow, onSeekToken, onReAsk }: Props) 
       alive = false;
     };
   }, [trace.meta.lens]);
-  const contradicted = useMemo(
-    () => contradictedTerms(trace.question, trace.answer),
-    [trace.question, trace.answer],
-  );
+  const contradicted = useMemo(() => deniedTerms(trace.answer), [trace.answer]);
   const ask = () => onReAsk(trace.video_id, q.trim() || DEFAULT_QUESTION, lens);
 
   return (
@@ -112,8 +109,8 @@ export function QueryConsole({ trace, answerRow, onSeekToken, onReAsk }: Props) 
       </div>
       {contradicted.size > 0 && (
         <div className="premise-check">
-          premise check: the answer negates “{[...contradicted].join("”, “")}” — cells
-          reading it pulse red in the grids below
+          adversarial check: the answer denies “{[...contradicted].join("”, “")}” — cells
+          whose readouts contain it pulse red in the grid below
         </div>
       )}
     </div>
