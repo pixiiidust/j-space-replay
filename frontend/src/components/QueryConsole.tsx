@@ -75,7 +75,7 @@ export function QueryConsole({ trace, answerRow, onSeekToken, onReAsk }: Props) 
         <input
           type="text"
           value={q}
-          aria-label="new question"
+          aria-label="new prompt"
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") ask();

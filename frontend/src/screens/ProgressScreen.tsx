@@ -36,7 +36,7 @@ export function ProgressScreen({ jobId, question, onDone }: Props) {
       <div className="topbar">
         <h1>Video J-Space Replay</h1>
         <div className="metaline">
-          processing · one offline pass · Q: <b>{question}</b>
+          processing · one offline pass · prompt: <b>{question}</b>
         </div>
       </div>
       <div style={{ padding: "10px 12px 0" }}>

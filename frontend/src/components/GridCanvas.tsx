@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
 import { heatColor, setupCanvas } from "./canvas";
+import { canonWord } from "../trace/terms";
+import { normalizeToken } from "../trace/wordlike";
 
 const normWord = (s: string | null | undefined) =>
-  s == null ? null : s.trim().toLowerCase() || null;
+  s == null ? null : canonWord(normalizeToken(s).toLowerCase()) || null;
 
 function ellipsize(ctx: CanvasRenderingContext2D, s: string, maxW: number): string {
   if (ctx.measureText(s).width <= maxW) return s;
@@ -40,6 +42,8 @@ interface Props {
    * pop visually.
    */
   cellText?: (string | null)[][];
+  /** Emphasize cells reading THIS word instead of the selected cell's word. */
+  matchWord?: string | null;
 }
 
 /**
@@ -62,6 +66,7 @@ export function GridCanvas({
   revealUpToCol,
   pulse,
   cellText,
+  matchWord,
 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -100,7 +105,7 @@ export function GridCanvas({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowLabels, colLabels, values, selected, highlightRow, highlightCol, revealUpToRow, revealUpToCol, pulse, anyPulse, cellText, width, height, cellW, cellH, labelW, maxAbs, nRows, nCols]);
+  }, [rowLabels, colLabels, values, selected, highlightRow, highlightCol, revealUpToRow, revealUpToCol, pulse, anyPulse, cellText, matchWord, width, height, cellW, cellH, labelW, maxAbs, nRows, nCols]);
 
   function draw(ctx: CanvasRenderingContext2D, pulseAlpha: number) {
     ctx.clearRect(0, 0, width, height);
@@ -122,7 +127,9 @@ export function GridCanvas({
       ctx.fillStyle = highlightRow === r ? "#113f8c" : unrevealed ? "#c9c9c2" : "#1d1d1b";
       const lbl = rowLabels[r].length > 13 ? rowLabels[r].slice(0, 12) + "…" : rowLabels[r];
       ctx.fillText(lbl, 4, y + cellH / 2);
-      const selWord = selected ? normWord(cellText?.[selected.r]?.[selected.c]) : null;
+      const selWord = matchWord != null
+        ? normWord(matchWord)
+        : selected ? normWord(cellText?.[selected.r]?.[selected.c]) : null;
       for (let c = 0; c < nCols; c++) {
         const v = values[r][c];
         const x = labelW + c * cellW;
