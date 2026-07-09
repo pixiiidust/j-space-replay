@@ -22,6 +22,22 @@ describe("contradiction tracking (adversarial signal)", () => {
     expect(t.has("panda")).toBe(false); // the subject is not the denial
   });
 
+  it("skips hedge scaffolding and reaches the denial's target", () => {
+    // real case from user QA: the old 6-word window flagged
+    // visible/evidence/being and missed the actual target "pushed"
+    const t = deniedTerms(
+      "The image shows a panda in an enclosure, and it appears to be climbing " +
+      "or moving along a wooden structure. There is no visible evidence of the " +
+      "panda being pushed. The panda seems to be actively engaging with its " +
+      "environment, possibly exploring or playing.",
+    );
+    expect(t.has("push")).toBe(true); // canonical form of "pushed"
+    expect(t.has("visible")).toBe(false);
+    expect(t.has("evidence")).toBe(false);
+    expect(t.has("being")).toBe(false);
+    expect(t.has("panda")).toBe(false); // affirmed throughout the answer
+  });
+
   it("no negation, no adversarial terms", () => {
     const t = deniedTerms("The car starts moving because the light changes to green.");
     expect(t.size).toBe(0);

@@ -22,7 +22,7 @@ function PulseLegend({ terms }: { terms: Set<string> }) {
   if (terms.size === 0) return null;
   return (
     <span style={{ color: "#c0392b" }}>
-      {" "}· pulsing cells read “{[...terms].join('”, “')}” — content the answer denies
+      {" "}· pulsing cells read “{[...terms].join('”, “')}” — content the answer rules out
     </span>
   );
 }
