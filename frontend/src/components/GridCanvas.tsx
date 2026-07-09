@@ -150,15 +150,13 @@ export function GridCanvas({
           ctx.font = "10px 'IBM Plex Mono', monospace";
         }
         if (pulse?.[r]?.[c]) {
-          // contradiction pulse: the readouts here contain a premise the
-          // answer negates
+          // adversarial pulse: outline only, so the cell's word and heat
+          // stay readable underneath
           ctx.globalAlpha = pulseAlpha;
-          ctx.fillStyle = "#c0392b";
-          ctx.fillRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
-          ctx.globalAlpha = 1;
           ctx.strokeStyle = "#c0392b";
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1.5, y + 1.5, cellW - 3, cellH - 3);
+          ctx.globalAlpha = 1;
         }
       }
       ctx.globalAlpha = 1;
