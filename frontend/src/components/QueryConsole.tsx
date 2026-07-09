@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Trace } from "../trace/types";
-import { getLenses } from "../api/client";
+import { getLenses, isStaticDemo } from "../api/client";
 import { DEFAULT_QUESTION, LENS_LABELS } from "../constants";
 import { deniedTerms } from "../trace/terms";
 
@@ -81,14 +81,22 @@ export function QueryConsole({ trace, answerRow, onSeekToken, onReAsk }: Props) 
             if (e.key === "Enter") ask();
           }}
         />
-        <LensSelect value={lens} onChange={setLens} lenses={lenses} />
-        <button
-          className="btn primary"
-          onClick={ask}
-          title="re-runs the pipeline on this video"
-        >
-          re-ask ▶
-        </button>
+        {isStaticDemo ? (
+          <span className="muted" title="this is a static demo — clone the repo to trace your own clips">
+            read-only demo
+          </span>
+        ) : (
+          <>
+            <LensSelect value={lens} onChange={setLens} lenses={lenses} />
+            <button
+              className="btn primary"
+              onClick={ask}
+              title="re-runs the pipeline on this video"
+            >
+              re-ask ▶
+            </button>
+          </>
+        )}
       </div>
       <div className="arow">
         <span className="tag">A</span>{" "}

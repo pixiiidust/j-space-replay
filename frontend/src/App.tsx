@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { startTrace, isCached } from "./api/client";
+import { startTrace, isCached, isStaticDemo } from "./api/client";
 import { UploadScreen } from "./screens/UploadScreen";
 import { ProgressScreen } from "./screens/ProgressScreen";
 import { ReplayScreen } from "./screens/ReplayScreen";
@@ -17,7 +17,9 @@ type Route =
  * plus the library screen. No dev-tools knowledge required.
  */
 export function App() {
-  const [route, setRoute] = useState<Route>({ screen: "upload" });
+  const [route, setRoute] = useState<Route>(
+    isStaticDemo ? { screen: "library" } : { screen: "upload" },
+  );
 
   const openReplay = useCallback((traceId: string) => setRoute({ screen: "replay", traceId }), []);
 
