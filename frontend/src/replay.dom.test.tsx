@@ -35,16 +35,15 @@ beforeAll(() => {
 afterEach(() => cleanup());
 
 describe("replay dashboard mounts and drives", () => {
-  it("renders the dashboard, honesty banner, timeline, concepts, events", async () => {
+  it("renders the dashboard and honesty banner; sidebar stays gone", async () => {
     render(<ReplayScreen traceId="ball_drop" onReAsk={() => {}} onOpenLibrary={() => {}} />);
 
     // banner (verbatim marker) and core panels appear once the trace loads
     await waitFor(() => expect(screen.getByText(/Demo-quality interpretability/)).toBeTruthy());
     expect(screen.getByText(/Workspace Slice/)).toBeTruthy();
-    expect(screen.getByText(/Concepts/)).toBeTruthy();
-    expect(screen.getByText(/Event Log/)).toBeTruthy();
-    // fixtures carry M2 (experimental) concepts since #14 -> board shows labels
-    expect(screen.getAllByText(/brown/).length).toBeGreaterThan(0);
+    // concepts board + event log removed by user QA (concepts stay in the
+    // trace JSON; the workspace grid is the primary surface)
+    expect(screen.queryByText(/Event Log/)).toBeNull();
     // strength axis label present, never "confidence"
     expect(screen.getAllByText(/readout strength/).length).toBeGreaterThan(0);
     expect(document.body.textContent).not.toMatch(/confidence|probability/i);
