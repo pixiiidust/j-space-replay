@@ -80,14 +80,25 @@ const isTransparent = (w: string) =>
  * denies it (mentions outside negation reach outnumber those inside).
  * Purely mechanical string analysis of the answer text.
  */
+/** A negation's reach ends at a clause boundary: punctuation or one of
+ * these connectives ("no longer supported AND begins to fall" affirms
+ * "begins" — it must not inherit the denial). */
+const CLAUSE_BREAK = new Set([
+  "and", "but", "or", "so", "then", "while", "which", "that", "because",
+  "although", "though", "however",
+]);
+
 export function deniedTerms(answer: string, maxContent = 2, reach = 10): Set<string> {
-  const words = answer.toLowerCase().match(/[a-z][a-z'-]*/g) ?? [];
+  // keep punctuation as boundary markers so a denial cannot cross a clause
+  const words = answer.toLowerCase().match(/[a-z][a-z'-]*|[.,;:!?]/g) ?? [];
+  const isBoundary = (w: string) => !/^[a-z]/.test(w) || CLAUSE_BREAK.has(w);
   // positions of content words a negation reaches
   const negated = new Array<boolean>(words.length).fill(false);
   for (let i = 0; i < words.length; i++) {
     if (!NEGATIONS.has(words[i])) continue;
     let content = 0;
     for (let j = i + 1; j < words.length && j <= i + reach && content < maxContent; j++) {
+      if (isBoundary(words[j])) break;
       if (isTransparent(words[j])) continue;
       negated[j] = true;
       content += 1;
@@ -97,7 +108,7 @@ export function deniedTerms(answer: string, maxContent = 2, reach = 10): Set<str
   const affirmations = new Map<string, number>();
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
-    if (isTransparent(w)) continue;
+    if (!/^[a-z]/.test(w) || isTransparent(w)) continue;
     const c = canonWord(w);
     const bucket = negated[i] ? denials : affirmations;
     bucket.set(c, (bucket.get(c) ?? 0) + 1);

@@ -48,6 +48,14 @@ describe("contradiction tracking (adversarial signal)", () => {
     expect(t.has("umbrella")).toBe(true);
   });
 
+  it("a denial stops at a clause boundary", () => {
+    // real case from the README screenshot: "begins" is affirmed, not denied
+    const t = deniedTerms("The ball is no longer supported and begins to fall due to gravity.");
+    expect(t.has("support")).toBe(true);
+    expect(t.has("begin")).toBe(false);
+    expect(t.has("fall")).toBe(false);
+  });
+
   it("a word affirmed more often than denied is dropped", () => {
     const t = deniedTerms(
       "The ball does not fall at first. Later the ball falls off the edge and keeps falling.",
