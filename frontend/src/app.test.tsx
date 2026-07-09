@@ -1,34 +1,28 @@
 /**
- * Guards two SPEC-locked facts and a render crash-smoke:
- *  - the honesty banner text is VERBATIM from SPEC.md,
+ * Guards two locked product facts and a render crash-smoke:
+ *  - the honesty banner text is VERBATIM the locked wording below (it used to
+ *    be sourced from SPEC.md; the spec doc was moved out of the public repo,
+ *    so the test now carries the contract itself),
  *  - the strength axis label is "readout strength" (never confidence/probability),
  *  - <App/> renders its initial (upload) screen with the banner present.
  */
 import { describe, it, expect } from "vitest";
 import { renderToString } from "react-dom/server";
-import { readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { HONESTY_BANNER, STRENGTH_AXIS_LABEL } from "./constants";
 import { App } from "./App";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const specPath = resolve(here, "..", "..", "SPEC.md");
+// The locked banner wording. Changing this is a PRODUCT decision (honesty
+// framing), not a copy edit — do not "fix" one side to match the other
+// without that intent.
+const LOCKED_BANNER =
+  "Demo-quality interpretability. Lens readouts are noisy, single-token, and " +
+  "unvalidated on vision-language models. The J-lens method was validated on " +
+  "Claude text models only (Anthropic workspace paper); this tool extrapolates " +
+  "it to a VLM. Not suitable for mechanistic claims.";
 
-function bannerFromSpec(): string {
-  const lines = readFileSync(specPath, "utf8").split("\n");
-  // the banner is the blockquote under "## Honesty banner"
-  const start = lines.findIndex((l) => l.startsWith("> Demo-quality"));
-  const block: string[] = [];
-  for (let i = start; i < lines.length && lines[i].startsWith(">"); i++) {
-    block.push(lines[i].replace(/^>\s?/, "").trim());
-  }
-  return block.join(" ");
-}
-
-describe("SPEC-locked UI facts", () => {
-  it("honesty banner is verbatim from SPEC.md", () => {
-    expect(HONESTY_BANNER).toBe(bannerFromSpec());
+describe("locked UI facts", () => {
+  it("honesty banner is verbatim the locked wording", () => {
+    expect(HONESTY_BANNER).toBe(LOCKED_BANNER);
   });
 
   it("strength axis label never says confidence/probability", () => {
