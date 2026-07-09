@@ -1,6 +1,6 @@
 /**
- * The honesty banner text, VERBATIM from SPEC.md §"Honesty banner (must appear
- * in UI)". Must render unchanged on the replay screen. Do not paraphrase.
+ * The honesty banner text — LOCKED wording (guarded verbatim by app.test.tsx).
+ * Must render unchanged on the replay screen. Do not paraphrase.
  */
 export const HONESTY_BANNER =
   "Demo-quality interpretability. Lens readouts are noisy, single-token, and " +

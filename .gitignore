@@ -26,3 +26,7 @@ Thumbs.db
 # Claude Code agent worktrees
 .claude/worktrees/
 jlens/
+# local planning docs, kept out of the public repo (docs/ itself stays
+# committable for the README screenshot)
+docs/SPEC.md
+docs/PLAN.md

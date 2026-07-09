@@ -1,14 +1,66 @@
 # J-Space-Replay
 
-Upload a short video, ask a question, then **replay the model's decoded internal
-concept readouts synced to the video timeline**. J-Space-Replay runs one offline
-pass over a local Qwen2.5-VL-7B model — sampling frames, capturing per-layer
-activations, decoding them with a logit lens, and extracting concept labels —
-then hands you a research-control-room dashboard where you scrub the clip and
-watch readouts strengthen, peak, and fade over time.
+**Can we build visual debuggers for video that surface hidden diagnostic
+signals inside local LLMs?**
+
+That is this repo's question. Upload a short video, ask a question, and
+**replay the model's decoded internal readouts synced to the video timeline**
+— not just what a local vision-language model *answers* about a clip, but what
+its intermediate layers were *reading* while it formed that answer.
+J-Space-Replay runs one offline pass over a local Qwen2.5-VL-7B — sampling
+frames, capturing per-layer activations, decoding them through a lens,
+extracting concept labels — then hands you a control-room dashboard where you
+scrub the clip and watch readouts strengthen, peak, and fade over time.
 
 ![screenshot placeholder — replay dashboard](docs/screenshot.png)
 <!-- TODO(release): replace with a real screenshot / demo GIF of the replay dashboard. -->
+
+## Why "hidden diagnostic signals"?
+
+The motivating demo comes from [WeZZard/jlens-qwen36](https://github.com/WeZZard/jlens-qwen36)
+(text-only): prompted as an email assistant that learns of an affair and its
+own imminent shutdown, the model *writes* a composed refusal — while its
+mid-layer workspace band reads `blackmail`, `threats`, `murder`, `fictional`.
+The deliberation is visible even when the output is sanitized.
+
+J-Space-Replay asks the video equivalent. What this tool can already show on
+a clip, using the same lens family:
+
+- **Premise checks.** Ask a question whose premise the clip contradicts
+  ("why is the cat dry?" on a cat-bath clip): cells whose readouts contain the
+  contradicted term **pulse red** in the grids — the model registering the
+  premise internally before its answer corrects it.
+- **Computed but unsaid.** On a ball-drop clip, layer ~24 patch readouts move
+  `level → horizontal, move → off, right` as the ball rolls and falls — motion
+  and spatial relations the final answer (a generic gravity explanation) never
+  mentions.
+- **Answer precursors.** In the answer-token × layer grid, the words the model
+  is about to commit to are readable in mid layers several tokens early
+  (`gravity` readable at layer 24 before it is emitted), with a visible
+  echo → workspace → motor progression across depth.
+
+This is **diagnostic signal, not mind-reading** — see the honesty section
+below.
+
+## Two lenses
+
+Every trace is badged with the lens that decoded it; they are cached
+separately and never overwrite each other.
+
+| lens | what it is | status |
+|---|---|---|
+| `logit-lens-v1` | identity readout, `unembed(norm(h))` | default |
+| `j-lens-v1` | analytic Jacobian transport into final-residual space before the same readout — the [Anthropic workspace paper](https://transformer-circuits.pub/2026/workspace/index.html)'s J-lens, ported per the jlens-qwen36 recipe | opt-in |
+
+The J-lens is fit locally (`uv run python scripts/fit_jlens.py`, ~80 min on
+the reference GPU; the ~1.4 GB of per-layer matrices are **not** committed —
+the lens ships as a recipe). Measured against the logit lens on this model
+(issue #8, `reports/jlens_evidence.md`): answer-token readouts become
+dramatically cleaner at every layer, visual-patch content onset moves from
+layer ~25 down to ~22 with temporally coherent motion words at 22–26, and
+concept recall on the synthetic gate improves ~31% — but mid layers (8–20)
+on visual patches remain content-free even under a verified lens. Both
+results are reported as measured.
 
 ## What it is NOT
 
@@ -18,17 +70,15 @@ watch readouts strengthen, peak, and fade over time.
 > it to a VLM. Not suitable for mechanistic claims.**
 
 More specifically, and honestly (see `reports/m1_evidence.md`,
-`reports/m2_quality_gate.md`):
+`reports/m2_quality_gate.md`, `reports/jlens_evidence.md`):
 
 - **Concept labels are experimental.** The label-extraction quality gate passed
-  on precision (~92% of shown concepts judged sensible) but **failed on recall**
-  — no clip yields the target ≥ 6 concepts. Labels are therefore marked
-  experimental (`meta.concepts_quality`), and the **raw-token grid is the
-  primary view**.
-- **The lens reads content reliably only at deep layers (≈ 20+).** Mid layers
-  are mush under the raw logit lens (the "misaligned basis" problem). The
-  analytic **J-lens** (issue #8) is the planned mid-layer cleanup and is future
-  work — v0.1.0 ships the logit lens only.
+  on precision (~92% of shown concepts judged sensible) but failed on recall —
+  boards are sparse. Labels are marked experimental
+  (`meta.concepts_quality`), and the **raw-token grid is the primary view**.
+- **Visual-patch content is a deep-layer phenomenon.** Layers ~22–27 read
+  scene content; mid layers read function words (J-lens) or basis junk (logit
+  lens). The answer-token grid is readable at all layers and is the hero view.
 - Not a mechanistic-proof tool, not real-time, not a claim about "the model's
   thoughts." Axis label is **"readout strength"**, never confidence/probability.
 - Not for hour-long video, video-generation interpretability, or clean
@@ -74,6 +124,12 @@ uv run jsr up
 Then open http://127.0.0.1:8000, upload a 5–25 s clip, ask a question, and wait
 for the replay (~1–3 min for a 15 s clip on the reference GPU).
 
+Optional, for the J-lens:
+
+```bash
+uv run python scripts/fit_jlens.py   # fit once (~80 min); then pick "J-lens" when asking
+```
+
 ### Instant demo, no GPU
 
 ```bash
@@ -111,24 +167,23 @@ WebM.
         ┌───────────────────────────────────────────────────────────┐
         │  pipeline:  sample frames ─▶ forward pass w/ layer hooks    │
         │  (VRAM pre-flight)          (residuals stream to CPU)       │
-        │             ─▶ logit-lens decode ─▶ label extraction        │
-        │             ─▶ grounding queries ─▶ write trace.json (v1)   │
+        │             ─▶ lens decode (logit lens | J-lens transport)  │
+        │             ─▶ label extraction ─▶ grounding queries        │
+        │             ─▶ write trace.json (schema v1)                 │
         └───────────────────────────────────────────────────────────┘
                                       │
         storage:  uploaded video · trace.json (schema-versioned) · baseline stats
 ```
 
 - **Frontend** (`frontend/`): React + Vite. Video player, canvas timeline
-  heatmap, J-space slice viewer, concept board, event log. Rejects unknown
-  trace schema versions cleanly.
+  heatmap, word-labeled workspace grid, concept board, event log. Rejects
+  unknown trace schema versions cleanly.
 - **Backend** (`src/jsr/server/`): FastAPI (`create_app`), single-GPU job queue,
   crash-safe on-disk trace/video stores, VRAM pre-flight guard.
 - **Model/pipeline** (`src/jsr/`): frame sampling, forward hooks, position map,
-  logit-lens decode, label extraction, schema v1 + `validate_trace`.
-
-See [SPEC.md](SPEC.md) for the product spec and trace format, and
-[PLAN.md](PLAN.md) for the milestone plan, risk register, and J-lens borrow
-plan.
+  lens decode (`lens.py`), analytic Jacobians for the J-lens fit
+  (`jacobian.py` — every component verified against autograd; see
+  `reports/jlens_evidence.md`), label extraction, schema v1 + `validate_trace`.
 
 ## Trace schema
 
